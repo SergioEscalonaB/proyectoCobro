@@ -1,0 +1,62 @@
+Datos de prueba Postman
+
+ELIMINAR CLIENTE DE LA BASE DE DATOS
+Delete http://localhost:3000/clientes/forzado-sin-verificar/#cliCliente
+
+CREAR UN COBRO Y UNA RUTA
+POST http://localhost:3000/cobros
+{
+    "cobCodigo" : "POLONUEVO",
+    "cobNombre": "Hernan Junior",
+    "cobMoto" : "Boxer CT100",
+    "cobTelefono" : "3152200000"
+}
+
+ELIMINAR COBRO 
+DELETE http://localhost:3000/cobros/eliminarcobro/#nombre
+
+CREAR CLIENTE Y TARJETA
+POST http://localhost:3000/clientes
+{
+  "cliCodigo": 22545,
+  "cliNombre": "Maria Pérez",
+  "cliCalle": "Cra 45 #76-30, Barranquilla",
+  "cliCorreo": "maria.perez@example.com",
+  "cobCodigo": "BARANOA",
+  "tarValor": 500000,
+  "tiempo": 30,
+  "fp": "Mensual"
+}
+
+OBTENER TODOS LOS CLIENTES
+GET http://localhost:3000/clientes
+
+OBTENER LA DESCRIPCION DE LOS ABONOS
+GET http://localhost:3000/descripciones
+
+REALIZAR ABONOS A LA TARJETA
+POST http://localhost:3000/descripciones
+{
+    "tarCodigo" : "TAR-22545-1761242925384",
+    "desAbono" : 500,
+    "desResta" : 0
+}
+
+OBTENER DESCRIPCION DE ABONOS DE UN CLIENTE
+GET http://localhost:3000/descripciones/cliente/22545
+
+
+CREAR CLIENTE INICIAL EN ORDENE
+{"cliCodigo": 103, "cliNombre": "Carlos", "cliCalle": "Calle 3", "cobCodigo": "BARANOA", "tarValor": 1200, "tiempo": 90, "fp": "Mensual"}
+
+{"cliCodigo": 102, "cliNombre": "Ana", "cliCalle": "Calle 2", "cobCodigo": "BARANOA", "tarValor": 800, "tiempo": 60, "fp": "Quincenal"}
+
+{"cliCodigo": 101, "cliNombre": "Pedro", "cliCalle": "Calle 1", "cobCodigo": "BARANOA", "tarValor": 500, "tiempo": 30, "fp": "Diario"}
+
+CREAR CLIENTE ASIGNANDO POSICION
+POST http://localhost:3000/clientes?referencia=2&modo=antes
+{"cliCodigo": 104, "cliNombre": "Nuevo Antes de Ana", "cliCalle": "Calle 4", "cobCodigo": "BARANOA", "tarValor": 300, "tiempo": 15, "fp": "Semanal"}
+
+POST http://localhost:3000/clientes?referencia=4&modo=despues
+{"cliCodigo": 105, "cliNombre": "Nuevo Despues de Ana", "cliCalle": "Calle 5", "cobCodigo": "BARANOA", "tarValor": 900, "tiempo": 45, "fp": "Diario"}
+
