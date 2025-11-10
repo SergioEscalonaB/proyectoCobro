@@ -1,0 +1,55 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Cobro {
+  cobCodigo    String    @id
+  cobNombre    String
+  cobDireccion String?
+  cobMoto      String?
+  cobTelefono  String?
+  clientes     Cliente[]
+}
+
+model Cliente {
+  cliCodigo Int       @id
+  cliNombre String
+  cliCalle  String?
+  estado    String    @default("Activo")  // Activo o Inactivo
+  cobCodigo String
+  cobro     Cobro     @relation(fields: [cobCodigo], references: [cobCodigo])
+  tarjetas  Tarjeta[] // Relación 1 a muchos
+}
+
+model Tarjeta {
+  tarCodigo     String        @id
+  tarValor      Float
+  tarCuota      Float
+  tarFecha      DateTime
+  iten          Int           @default(0)
+  estado        String
+  clavo         Boolean?      @default(false)
+  pres          Int?
+  tiempo        Int
+  fp            String
+  cliCodigo     Int           // SIN @unique para permitir múltiples tarjetas
+  descripciones Descripcion[]
+  cliente       Cliente       @relation(fields: [cliCodigo], references: [cliCodigo])
+
+  @@index([cliCodigo, estado]) // Índice para consultas eficientes
+}
+
+model Descripcion {
+  id        Int      @id @default(autoincrement())
+  desFecha  DateTime
+  desAbono  Float
+  desResta  Float
+  fechaAct  DateTime
+  tarCodigo String
+  tarjeta   Tarjeta  @relation(fields: [tarCodigo], references: [tarCodigo], onDelete: Cascade)
+}
