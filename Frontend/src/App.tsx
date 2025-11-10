@@ -7,6 +7,7 @@ import CobroPage from './pages/CobroPage';
 import ClientePage from './pages/ClientePage';
 import AbonoPage from './pages/AbonoPage';
 import ReportePage from './pages/ReportePage';
+import NuevoClienteForm from "./components/NuevoClienteForm";
 
 /**
  * Componente de Ruta Protegida (ProtectedRoute)
@@ -53,6 +54,7 @@ const App: React.FC = () => {
         {/* La página Abono es la que contiene el HTML que proporcionaste */}
         <Route path="/abono" element={<ProtectedRoute element={<AbonoPage />} />} />
         <Route path="/reporte" element={<ProtectedRoute element={<ReportePage />} />} />
+        <Route path="/nuevo-cliente" element={<NuevoClienteForm />} />
 
         {/* Ruta por defecto: redirige a la página principal (que es el Menú) */}
         <Route path="*" element={<Navigate to="/" replace />} />
