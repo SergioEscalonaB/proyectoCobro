@@ -169,7 +169,7 @@ export class ClienteService {
           break;
       }
       const numCuotas = Math.ceil(Number(tiempo) / diasFrecuencia);
-      const tarCuota = Number((Number(tarValor) / numCuotas).toFixed(2));
+      const tarCuota = Number(Number(tarValor) / numCuotas);
 
       const nuevoIten = await this.calcularYReindexarIten(tx, insertarPosicion);
 

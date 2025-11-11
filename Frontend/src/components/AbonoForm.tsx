@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import React, { useState, useEffect, useRef } from "react";
+import { Link } from "react-router-dom";
 
 interface Cliente {
   cliCodigo: number;
@@ -8,6 +8,7 @@ interface Cliente {
   estado: string;
   saldoTotal: number;
   tarjetaActiva: {
+    tarCodigo: string;
     tarValor: number;
     tarCuota: number;
     tarFecha: string;
@@ -23,15 +24,34 @@ interface Cobrador {
   cobNombre: string;
 }
 
-const AbonoForm: React.FC = () => {
-  const navigate = useNavigate();
+interface Descripcion {
+  fechaAct: string;
+  desFecha: string;
+  desAbono: number;
+  desResta: number;
+  id: number;
+}
 
+const AbonoForm: React.FC = () => {
   // Estados
   const [cobradores, setCobradores] = useState<Cobrador[]>([]);
   const [cobradorSeleccionado, setCobradorSeleccionado] = useState<string>("");
   const [clienteActual, setClienteActual] = useState<Cliente | null>(null);
+  const [descripcionAbonos, setDescripcionAbonos] = useState<Descripcion[]>([]);
   const [cargando, setCargando] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
+  const [mostrarInputsAbono, setMostrarInputsAbono] = useState(false);
+  const [montoAbono, setMontoAbono] = useState<number | "">("");
+  const [saldoEscrito, setSaldoEscrito] = useState<number | "">("");
+  const [saldoCalculado, setSaldoCalculado] = useState(0);
+
+  const [abonoVisitado, setAbonoVisitado] = useState(false);
+
+  const abonoInputRef = useRef<HTMLInputElement>(null);
+  const saldoInputRef = useRef<HTMLInputElement>(null);
+
+  const [posicionCliente, setPosicionCliente] = useState<number | null>(null);
+  const [totalClientes, setTotalClientes] = useState<number>(0);
 
   // Cargar cobradores al iniciar
   useEffect(() => {
@@ -47,6 +67,7 @@ const AbonoForm: React.FC = () => {
     }
   }, [cobradorSeleccionado]);
 
+  // Funciones para cargar datos desde la API
   const cargarCobradores = async () => {
     try {
       setCargando(true);
@@ -68,6 +89,7 @@ const AbonoForm: React.FC = () => {
     }
   };
 
+  // Cargar el primer cliente para un cobrador dado
   const cargarPrimerCliente = async (cobCodigo: string) => {
     try {
       setCargando(true);
@@ -97,6 +119,7 @@ const AbonoForm: React.FC = () => {
     }
   };
 
+  // Navegar entre clientes
   const navegarCliente = async (direccion: "siguiente" | "anterior") => {
     if (!clienteActual || !cobradorSeleccionado) return;
 
@@ -128,36 +151,202 @@ const AbonoForm: React.FC = () => {
     }
   };
 
-  const formatFecha = (fechaString: string) => {
+  const formatFecha = (fechaISO: string) => {
+    if (!fechaISO) return "";
+    const fecha = new Date(fechaISO);
+    const dia = String(fecha.getDate()).padStart(2, "0");
+    const mes = String(fecha.getMonth() + 1).padStart(2, "0");
+    const año = String(fecha.getFullYear()).slice(-2);
+    return `${dia}-${mes}-${año}`;
+  };
+
+  //cargar descripciones de abonos para el cliente actual
+  useEffect(() => {
+    if (clienteActual?.cliCodigo) {
+      cargarDescripcionAbonos(clienteActual.cliCodigo);
+    } else {
+      setDescripcionAbonos([]);
+    }
+  }, [clienteActual]);
+
+  // Función para cargar descripciones
+  const cargarDescripcionAbonos = async (cliCodigo: number) => {
     try {
-      const fecha = new Date(fechaString);
-      return fecha.toLocaleDateString("es-ES", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "2-digit",
-      });
+      const tarjetaResponse = await fetch(
+        `http://localhost:3000/descripciones/cliente/${cliCodigo}/activa`
+      );
+      if (!tarjetaResponse.ok)
+        throw new Error("Error al obtener la tarjeta activa");
+
+      const data = await tarjetaResponse.json();
+
+      if (data?.tarjetaActiva?.descripciones) {
+        setDescripcionAbonos(data.tarjetaActiva.descripciones);
+      } else {
+        console.warn("⚠️ No se encontraron descripciones");
+        setDescripcionAbonos([]);
+      }
     } catch (error) {
-      return "Fecha inválida";
+      console.error("Error cargando descripciones:", error);
+      setDescripcionAbonos([]);
     }
   };
 
-  const calcularDiasVencidos = (fechaInicio: string) => {
-    try {
-      const inicio = new Date(fechaInicio);
-      const hoy = new Date();
-      const diferencia = hoy.getTime() - inicio.getTime();
-      return Math.floor(diferencia / (1000 * 3600 * 24));
-    } catch (error) {
-      return 0;
-    }
+  const calcularDiasVencidos = (fechaInicio: string, plazo: number) => {
+    if (!fechaInicio || !plazo) return 0;
+
+    const inicio = new Date(fechaInicio);
+    const fechaVencimiento = new Date(inicio);
+    fechaVencimiento.setDate(inicio.getDate() + plazo);
+
+    const hoy = new Date();
+    const diferencia = hoy.getTime() - fechaVencimiento.getTime();
+
+    const dias = Math.floor(diferencia / (1000 * 3600 * 24));
+    return dias > 0 ? dias : 0; // Si aún no vence → 0 días vencidos
   };
+
+  const saldoActual =
+    descripcionAbonos.length > 0
+      ? descripcionAbonos[descripcionAbonos.length - 1].desResta
+      : clienteActual?.tarjetaActiva?.saldoActual || 0;
 
   // Función para manejar el envío del formulario de abono
-  const handleAbonoSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    // Implementar lógica para procesar abono
-    console.log("Procesando abono...");
+  const handleAbonoChange = (value: string) => {
+    const abono = parseInt(value) || "";
+    setMontoAbono(abono);
+    const abonoNumber = typeof abono === "number" ? abono : 0;
+    setSaldoCalculado(saldoActual - abonoNumber);
   };
+
+  const procesarAbono = async () => {
+    if (
+      !clienteActual?.tarjetaActiva?.tarCodigo ||
+      montoAbono === "" ||
+      saldoEscrito === ""
+    ) {
+      alert("⚠️ Datos incompletos");
+      return;
+    }
+
+    const abono = Number(montoAbono);
+    const saldo = Number(saldoEscrito);
+
+    // Validar que sean enteros
+    if (!Number.isInteger(abono) || !Number.isInteger(saldo)) {
+      alert("❌ Los montos deben ser números enteros");
+      return;
+    }
+
+    // Validar cálculo local (opcional, backend también valida)
+    if (saldoActual - abono !== saldo) {
+      alert("❌ El saldo no coincide con la resta");
+      return;
+    }
+
+    const payload = {
+      tarCodigo: clienteActual.tarjetaActiva.tarCodigo, // ← ¡CRUCIAL!
+      desAbono: abono,
+      desResta: saldo,
+      // fechaAct y desFecha: el backend las asigna si no vienen
+    };
+
+    try {
+      const response = await fetch("http://localhost:3000/descripciones", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || "Error al guardar el abono");
+      }
+
+      // ✅ Recargar descripciones y avanzar
+      await cargarDescripcionAbonos(clienteActual.cliCodigo);
+      await navegarCliente("siguiente");
+
+      // Reset
+      setMontoAbono("");
+      setSaldoEscrito("");
+      abonoInputRef.current?.focus();
+    } catch (error: any) {
+      console.error("Error:", error);
+      alert(`❌ ${error.message || "Error al guardar el abono"}`);
+    }
+  };
+
+  const handleAbonoKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      setAbonoVisitado(true); // ✅ Marca que el usuario entró al flujo
+      saldoInputRef.current?.focus();
+    }
+  };
+
+  const handleSaldoKeyDown = async (
+    e: React.KeyboardEvent<HTMLInputElement>
+  ) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+
+      // ✅ Lógica del "doble Enter": ambos campos vacíos
+      if (abonoVisitado && montoAbono === "" && saldoEscrito === "") {
+        // Limpiar estado y avanzar
+        setAbonoVisitado(false);
+        setMontoAbono("");
+        setSaldoEscrito("");
+        await navegarCliente("siguiente");
+        abonoInputRef.current?.focus(); // Volver a enfocar el abono para el próximo cliente
+        return;
+      }
+
+      // Si no es doble Enter, procesar abono normal
+      await procesarAbono();
+    }
+  };
+
+  // Reiniciar el estado del abono cuando cambie el cliente
+  useEffect(() => {
+    setMontoAbono("");
+    setSaldoEscrito("");
+    setAbonoVisitado(false);
+    abonoInputRef.current?.focus();
+  }, [clienteActual]);
+
+  const cargarPosicionCliente = async (
+    cobCodigo: string,
+    cliCodigoActual: number
+  ) => {
+    try {
+      const response = await fetch(
+        `http://localhost:3000/clientes/cobrador/${cobCodigo}/todos`
+      );
+      if (!response.ok) throw new Error("Error al cargar la lista de clientes");
+
+      const clientes: Cliente[] = await response.json();
+      setTotalClientes(clientes.length);
+
+      const indice = clientes.findIndex(
+        (cliente) => cliente.cliCodigo === cliCodigoActual
+      );
+      setPosicionCliente(indice !== -1 ? indice + 1 : null);
+    } catch (err: any) {
+      console.error("Error al cargar posición del cliente:", err);
+      setPosicionCliente(null);
+      setTotalClientes(0);
+    }
+  };
+
+  useEffect(() => {
+    if (clienteActual && cobradorSeleccionado) {
+      cargarPosicionCliente(cobradorSeleccionado, clienteActual.cliCodigo);
+    } else {
+      setPosicionCliente(null);
+      setTotalClientes(0);
+    }
+  }, [clienteActual, cobradorSeleccionado]);
 
   return (
     <div className="bg-gray-200 dark:bg-gray-800 h-screen p-4 font-sans overflow-hidden">
@@ -285,7 +474,8 @@ const AbonoForm: React.FC = () => {
                     value={
                       clienteActual?.tarjetaActiva
                         ? calcularDiasVencidos(
-                            clienteActual.tarjetaActiva.tarFecha
+                            clienteActual.tarjetaActiva.tarFecha,
+                            clienteActual.tarjetaActiva.tiempo
                           )
                         : 0
                     }
@@ -428,20 +618,36 @@ const AbonoForm: React.FC = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        <tr className="bg-white dark:bg-gray-600">
-                          <td className="px-1 py-0.5 border border-gray-800 dark:border-gray-500 dark:text-white text-center">
-                            -
-                          </td>
-                          <td className="px-1 py-0.5 border border-gray-800 dark:border-gray-500 dark:text-white text-center">
-                            -
-                          </td>
-                          <td className="px-1 py-0.5 border border-gray-800 dark:border-gray-500 dark:text-white text-center">
-                            -
-                          </td>
-                          <td className="px-1 py-0.5 border border-gray-800 dark:border-gray-500 dark:text-white text-center">
-                            -
-                          </td>
-                        </tr>
+                        {descripcionAbonos.length > 0 ? (
+                          descripcionAbonos.map((desc, index) => (
+                            <tr
+                              key={index}
+                              className="bg-white dark:bg-gray-600"
+                            >
+                              <td className="px-1 py-0.5 border border-gray-800 dark:border-gray-500 dark:text-white text-center">
+                                {formatFecha(desc.fechaAct)}
+                              </td>
+                              <td className="px-1 py-0.5 border border-gray-800 dark:border-gray-500 dark:text-white text-center">
+                                {formatFecha(desc.desFecha)}
+                              </td>
+                              <td className="px-1 py-0.5 border border-gray-800 dark:border-gray-500 dark:text-white text-center">
+                                {Number(desc.desAbono)}
+                              </td>
+                              <td className="px-1 py-0.5 border border-gray-800 dark:border-gray-500 dark:text-white text-center">
+                                {Number(desc.desResta)}
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td
+                              colSpan={4}
+                              className="px-1 py-0.5 border border-gray-800 dark:border-gray-500 dark:text-white text-center"
+                            >
+                              No hay abonos registrados
+                            </td>
+                          </tr>
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -450,6 +656,34 @@ const AbonoForm: React.FC = () => {
 
               {/* Fila de Botones Inferiores */}
               <div className="justify-end flex flex-col">
+                {/* Inputs de abono (si están visibles) */}
+                {mostrarInputsAbono && (
+                  <div className="flex gap-2 items-center mb-3 ml-65 justify-center">
+                    <input
+                      ref={abonoInputRef}
+                      type="number"
+                      placeholder="Abono"
+                      value={montoAbono}
+                      onChange={(e) => handleAbonoChange(e.target.value)}
+                      onKeyDown={handleAbonoKeyDown}
+                      className="border border-gray-600 p-1 w-20 text-center bg-yellow-200 font-bold"
+                    />
+                    <input
+                      ref={saldoInputRef}
+                      type="number"
+                      placeholder="Saldo"
+                      value={saldoEscrito}
+                      onChange={(e) =>
+                        setSaldoEscrito(parseInt(e.target.value) || "")
+                      }
+                      onKeyDown={handleSaldoKeyDown}
+                      className="border border-gray-600 p-1 w-20 text-center bg-green-200 font-bold"
+                    />
+                    <span className="text-xl dark:text-white">
+                      = {saldoCalculado}
+                    </span>
+                  </div>
+                )}
                 {/* Fila superior de botones */}
                 <div className="mb-0.5 flex gap-1">
                   <button
@@ -463,7 +697,6 @@ const AbonoForm: React.FC = () => {
                     type="button"
                     className="flex-1 border-2 border-gray-400 dark:border-gray-500 dark:text-white
                       bg-white dark:bg-gray-600 px-2 py-0.5 text-xs hover:bg-gray-200 transition-colors"
-                    onClick={handleAbonoSubmit}
                   >
                     Guardar
                   </button>
@@ -476,11 +709,13 @@ const AbonoForm: React.FC = () => {
                   </button>
                   <button
                     type="button"
+                    onClick={() => setMostrarInputsAbono(!mostrarInputsAbono)}
                     className="flex-1 border-2 border-gray-400 dark:border-gray-500 dark:text-white
                       bg-white dark:bg-gray-600 px-2 py-0.5 text-xs hover:bg-gray-200 transition-colors"
                   >
                     Abono
                   </button>
+
                   <button
                     type="button"
                     className="flex-1 border-2 border-gray-400 dark:border-gray-500 dark:text-white
@@ -488,14 +723,11 @@ const AbonoForm: React.FC = () => {
                   >
                     Modificar
                   </button>
-                  <button
-                    type="button"
-                    className="flex-1 border-2 border-gray-400 dark:border-gray-500 dark:text-white
-                      bg-white dark:bg-gray-600 px-2 py-0.5 text-xs hover:bg-gray-200 transition-colors"
-                    onClick={() => navigate("/")}
-                  >
-                    Salir
-                  </button>
+                  <div className="flex-1 flex items-center justify-center text-xl font-bold text-gray-800 dark:text-gray-200 -mt-1">
+                    {posicionCliente !== null
+                      ? `${posicionCliente} / ${totalClientes}`
+                      : "- / -"}
+                  </div>
                 </div>
                 {/* Fila inferior de botones de navegación */}
                 <div className="flex gap-1">
