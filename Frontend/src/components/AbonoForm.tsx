@@ -32,6 +32,21 @@ interface Descripcion {
   id: number;
 }
 
+const getDiasPorFrecuencia = (fp: string): number => {
+  switch (fp.toLowerCase()) {
+    case "diario":
+      return 1;
+    case "semanal":
+      return 7;
+    case "quincenal":
+      return 15;
+    case "mensual":
+      return 30;
+    default:
+      return 1;
+  }
+};
+
 const AbonoForm: React.FC = () => {
   // Estados
   const [cobradores, setCobradores] = useState<Cobrador[]>([]);
@@ -42,20 +57,67 @@ const AbonoForm: React.FC = () => {
   const [error, setError] = useState<string>("");
   const [mostrarInputsAbono, setMostrarInputsAbono] = useState(false);
   const [montoAbono, setMontoAbono] = useState<number | "">("");
+
   const [saldoEscrito, setSaldoEscrito] = useState<number | "">("");
-  const [saldoCalculado, setSaldoCalculado] = useState(0);
-
   const [abonoVisitado, setAbonoVisitado] = useState(false);
-
   const abonoInputRef = useRef<HTMLInputElement>(null);
   const saldoInputRef = useRef<HTMLInputElement>(null);
 
   const [posicionCliente, setPosicionCliente] = useState<number | null>(null);
   const [totalClientes, setTotalClientes] = useState<number>(0);
 
-  // Cargar cobradores al iniciar
+  const [modoNuevoCliente, setModoNuevoCliente] = useState<"antes" | "despues">(
+    "antes"
+  );
+  const [editandoNuevoCliente, setEditandoNuevoCliente] = useState(false);
+  // Campos editables para el nuevo cliente
+  const [nuevoClienteData, setNuevoClienteData] = useState({
+    cliCodigo: "",
+    cliNombre: "",
+    cliCalle: "",
+    tarValor: "",
+    tiempo: "",
+    fp: "Diario", // valor por defecto
+    tarFecha: "",
+  });
+
+  const [modoModificacion, setModoModificacion] = useState(false);
+  const [datosModificacion, setDatosModificacion] = useState({
+    cliNombre: "",
+    cliCalle: "",
+    tiempo: "",
+    fp: "Diario",
+  });
+
+  const [clientesExistentes, setClientesExistentes] = useState<Cliente[]>([]);
+  const [mostrarListaClientes, setMostrarListaClientes] = useState(false);
+
+  const cargarClientesExistentes = async () => {
+    try {
+      const response = await fetch("http://localhost:3000/clientes");
+      console.log(
+        "Respuesta del backend:",
+        response.status,
+        response.statusText
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      console.log("Datos recibidos:", data); // 👈 Esto te mostrará qué está llegando
+
+      setClientesExistentes(data);
+    } catch (err: any) {
+      console.error("Error cargando clientes existentes:", err);
+      setError(`Error: ${err.message}`);
+    }
+  };
+
   useEffect(() => {
     cargarCobradores();
+    cargarClientesExistentes(); // 🔥 Cargar clientes existentes
   }, []);
 
   // Cargar primer cliente cuando se selecciona un cobrador
@@ -160,6 +222,140 @@ const AbonoForm: React.FC = () => {
     return `${dia}-${mes}-${año}`;
   };
 
+  const handleGuardarNuevoCliente = async () => {
+    if (!cobradorSeleccionado) {
+      alert("Seleccione un cobrador primero");
+      return;
+    }
+
+    // Validar campos obligatorios
+    const { cliCodigo, cliNombre, cliCalle, tarValor, tiempo, fp, tarFecha } =
+      nuevoClienteData;
+    if (!cliCodigo || !cliNombre || !tarValor || !tiempo || !tarFecha) {
+      alert("Complete todos los campos obligatorios");
+      return;
+    }
+
+    const valor = Number(tarValor);
+    const plazo = Number(tiempo);
+    if (isNaN(valor) || isNaN(plazo) || valor <= 0 || plazo <= 0) {
+      alert("Valor y plazo deben ser números válidos mayores a 0");
+      return;
+    }
+
+    const diasPorCuota = getDiasPorFrecuencia(fp);
+    const numCuotas = Math.ceil(plazo / diasPorCuota);
+    const cuota = Math.floor(Math.ceil(valor / numCuotas));
+
+    // Convertir fecha corta a ISO
+    const fechaISO = convertirFechaCortaAISO(tarFecha);
+    if (!fechaISO) {
+      alert("Formato de fecha inválido. Use dd-mm-aa (ej: 15-04-25)");
+      return;
+    }
+
+    const payload = {
+      cliCodigo,
+      cliNombre,
+      cliCalle,
+      tarValor: valor,
+      tarCuota: cuota,
+      tiempo: plazo,
+      fp: fp, //
+      tarFecha: fechaISO,
+      cobCodigo: cobradorSeleccionado,
+    };
+
+    try {
+      setCargando(true);
+      setError("");
+
+      // Construir URL: con o sin referencia
+      let url = "http://localhost:3000/clientes";
+      if (clienteActual?.tarjetaActiva?.iten) {
+        // Solo si tiene tarjeta activa
+        const queryParams = new URLSearchParams({
+          referencia: clienteActual.tarjetaActiva.iten.toString(), // ← ITEN, no cliCodigo!
+          modo: modoNuevoCliente,
+        }).toString();
+        url += `?${queryParams}`;
+      }
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || "Error al crear el cliente");
+      }
+
+      alert("✅ Cliente creado exitosamente");
+      setEditandoNuevoCliente(false);
+      setNuevoClienteData({
+        cliCodigo: "",
+        cliNombre: "",
+        cliCalle: "",
+        tarValor: "",
+        tiempo: "",
+        fp: "Diario",
+        tarFecha: "",
+      });
+
+      // Recargar la lista
+      // Recargar el cliente recién creado por su cédula
+      try {
+        const response = await fetch(
+          `http://localhost:3000/clientes/${cliCodigo}`
+        );
+        if (response.ok) {
+          const clienteCreado = await response.json();
+          setClienteActual(clienteCreado);
+          setError("");
+        } else {
+          // Si no existe aún, ir al primero (por seguridad)
+          await cargarPrimerCliente(cobradorSeleccionado);
+        }
+      } catch (err) {
+        console.error("Error al cargar cliente recién creado:", err);
+        await cargarPrimerCliente(cobradorSeleccionado);
+      }
+    } catch (err: any) {
+      console.error("Error:", err);
+      setError(`Error: ${err.message}`);
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  const convertirFechaCortaAISO = (fechaCorta: string): string | null => {
+    // Ej: "15-04-25" → "2025-04-15"
+    const partes = fechaCorta.split("-");
+    if (partes.length !== 3) return null;
+    const [dd, mm, aa] = partes;
+    if (
+      !dd ||
+      !mm ||
+      !aa ||
+      dd.length !== 2 ||
+      mm.length !== 2 ||
+      aa.length !== 2
+    )
+      return null;
+
+    // Suponemos siglo 2000-2099
+    const año = parseInt(aa, 10) + 2000;
+    const mes = parseInt(mm, 10);
+    const dia = parseInt(dd, 10);
+
+    // Validación básica
+    if (mes < 1 || mes > 12 || dia < 1 || dia > 31) return null;
+
+    return `${año}-${mm}-${dd}`;
+  };
+
   //cargar descripciones de abonos para el cliente actual
   useEffect(() => {
     if (clienteActual?.cliCodigo) {
@@ -211,13 +407,8 @@ const AbonoForm: React.FC = () => {
       ? descripcionAbonos[descripcionAbonos.length - 1].desResta
       : clienteActual?.tarjetaActiva?.saldoActual || 0;
 
-  // Función para manejar el envío del formulario de abono
-  const handleAbonoChange = (value: string) => {
-    const abono = parseInt(value) || "";
-    setMontoAbono(abono);
-    const abonoNumber = typeof abono === "number" ? abono : 0;
-    setSaldoCalculado(saldoActual - abonoNumber);
-  };
+  const saldoCalculado =
+    typeof montoAbono === "number" ? saldoActual - montoAbono : saldoActual;
 
   const procesarAbono = async () => {
     if (
@@ -348,6 +539,75 @@ const AbonoForm: React.FC = () => {
     }
   }, [clienteActual, cobradorSeleccionado]);
 
+  const iniciarModificacion = () => {
+    if (!clienteActual?.tarjetaActiva) {
+      alert("No hay cliente activo para modificar");
+      return;
+    }
+    setModoModificacion(true);
+    setDatosModificacion({
+      cliNombre: clienteActual.cliNombre,
+      cliCalle: clienteActual.cliCalle,
+      tiempo: clienteActual.tarjetaActiva.tiempo.toString(),
+      fp: clienteActual.tarjetaActiva.fp || "Diario",
+    });
+  };
+
+  const guardarModificacion = async () => {
+    const { cliNombre, cliCalle, tiempo, fp } = datosModificacion;
+    const plazo = Number(tiempo);
+    if (!cliNombre || !cliCalle || isNaN(plazo) || plazo <= 0) {
+      alert("Complete todos los campos correctamente.");
+      return;
+    }
+
+    const valor = clienteActual!.tarjetaActiva!.tarValor;
+    const diasPorCuota = getDiasPorFrecuencia(fp);
+    const numCuotas = Math.ceil(plazo / diasPorCuota);
+    const tarCuota = Math.ceil(valor / numCuotas);
+
+    try {
+      setCargando(true);
+      const response = await fetch(
+        `http://localhost:3000/clientes/${clienteActual!.cliCodigo}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            cliNombre,
+            cliCalle,
+            tiempo: plazo,
+            fp,
+            tarCuota,
+          }),
+        }
+      );
+
+      if (!response.ok) throw new Error("Error al actualizar el cliente");
+
+      alert("✅ Cliente actualizado correctamente");
+      // Recargar cliente
+      const res = await fetch(
+        `http://localhost:3000/clientes/${clienteActual!.cliCodigo}`
+      );
+      if (res.ok) {
+        const cliente = await res.json();
+        setClienteActual(cliente);
+      }
+      setModoModificacion(false);
+    } catch (err: any) {
+      alert(`❌ Error: ${err.message}`);
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  const cancelarOperacion = () => {
+    setEditandoNuevoCliente(false);
+    setModoModificacion(false);
+    setMostrarListaClientes(false);
+    // No se reinicia nuevoClienteData porque no se usa en modo modificación
+  };
   return (
     <div className="bg-gray-200 dark:bg-gray-800 h-screen p-4 font-sans overflow-hidden">
       <div className="mx-auto h-full max-w-[100vw] flex flex-col">
@@ -404,65 +664,283 @@ const AbonoForm: React.FC = () => {
                   <label className="font-bold text-xs mb-0.5 text-gray-900 block dark:text-white">
                     Cedula
                   </label>
-                  <input
-                    type="text"
-                    value={clienteActual?.cliCodigo || ""}
-                    readOnly
-                    className="border border-gray-400 dark:border-gray-500 dark:text-white w-full bg-gray-100
+                  {editandoNuevoCliente ? (
+                    <input
+                      type="text"
+                      value={nuevoClienteData.cliCodigo}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === "") {
+                          setNuevoClienteData({
+                            ...nuevoClienteData,
+                            cliCodigo: "",
+                          });
+                        } else {
+                          // Solo permite dígitos
+                          const onlyDigits = val.replace(/\D/g, "");
+                          setNuevoClienteData({
+                            ...nuevoClienteData,
+                            cliCodigo: onlyDigits,
+                          });
+                        }
+                      }}
+                      className="border border-gray-400 dark:border-gray-500 dark:text-white w-full bg-white dark:bg-gray-600 px-1 py-0.5 text-xs"
+                    />
+                  ) : (
+                    <input
+                      type="text"
+                      value={clienteActual?.cliCodigo || ""}
+                      readOnly
+                      className="border border-gray-400 dark:border-gray-500 dark:text-white w-full bg-gray-100
                     dark:bg-gray-600 px-1 py-0.5 text-xs"
-                  />
+                    />
+                  )}
                 </div>
                 {/* Nombre Del Cliente */}
-                <div className="col-span-3">
-                  <label className="font-bold text-xs mb-0.5 text-gray-900 block dark:text-white">
-                    Nombre Del Cliente
-                  </label>
-                  <input
-                    type="text"
-                    value={clienteActual?.cliNombre || ""}
-                    readOnly
-                    className="border border-gray-400 dark:border-gray-500 dark:text-white w-full bg-gray-100
-                    dark:bg-gray-600 px-1 py-0.5 text-xs"
-                  />
+                <div className="col-span-3 flex flex-col">
+                  {/* 🔹 Label + Checkbox (solo si editandoNuevoCliente) */}
+                  <div className="flex items-center justify-left mb-1">
+                    <label className="font-bold text-xs text-gray-900 dark:text-white">
+                      Nombre Del Cliente
+                    </label>
+
+                    {editandoNuevoCliente && (
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          id="clienteExistente"
+                          className="ml-5"
+                          checked={mostrarListaClientes}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setMostrarListaClientes(checked);
+                            if (checked) {
+                              setNuevoClienteData({
+                                cliCodigo: "",
+                                cliNombre: "",
+                                cliCalle: "",
+                                tarValor: "",
+                                tiempo: "",
+                                fp: "Diario",
+                                tarFecha: "",
+                              });
+                            }
+                          }}
+                        />
+                        <label
+                          htmlFor="clienteExistente"
+                          className="text-xs font-bold text-gray-800 dark:text-gray-200"
+                        >
+                          Existente
+                        </label>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 🔹 Input o Select */}
+                  {editandoNuevoCliente ? (
+                    <div className="flex flex-col gap-1">
+                      {!mostrarListaClientes && (
+                        <input
+                          type="text"
+                          value={nuevoClienteData.cliNombre}
+                          onChange={(e) =>
+                            setNuevoClienteData({
+                              ...nuevoClienteData,
+                              cliNombre: e.target.value,
+                            })
+                          }
+                          className="border border-gray-400 dark:border-gray-500 dark:text-white w-full bg-white dark:bg-gray-600 px-1 py-0.5 text-xs"
+                        />
+                      )}
+
+                      {mostrarListaClientes && (
+                        <select
+                          value={nuevoClienteData.cliCodigo}
+                          onChange={(e) => {
+                            const cliCodigo = e.target.value;
+                            const cliente = clientesExistentes.find(
+                              (c) => c.cliCodigo.toString() === cliCodigo
+                            );
+                            if (cliente) {
+                              setNuevoClienteData({
+                                cliCodigo: cliente.cliCodigo.toString(),
+                                cliNombre: cliente.cliNombre,
+                                cliCalle: cliente.cliCalle,
+                                tarValor: "",
+                                tiempo: "",
+                                fp: "Diario",
+                                tarFecha: "",
+                              });
+                            } else {
+                              setNuevoClienteData({
+                                cliCodigo: "",
+                                cliNombre: "",
+                                cliCalle: "",
+                                tarValor: "",
+                                tiempo: "",
+                                fp: "Diario",
+                                tarFecha: "",
+                              });
+                            }
+                          }}
+                          className="border border-gray-400 dark:border-gray-500 dark:text-white bg-white dark:bg-gray-600 px-1 py-0.5 text-xs"
+                        >
+                          <option value="">Seleccionar cliente...</option>
+                          {clientesExistentes.map((cliente) => (
+                            <option
+                              key={cliente.cliCodigo}
+                              value={cliente.cliCodigo}
+                            >
+                              {cliente.cliNombre} ({cliente.cliCodigo})
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                  ) : modoModificacion ? (
+                    <input
+                      type="text"
+                      value={datosModificacion.cliNombre}
+                      onChange={(e) =>
+                        setDatosModificacion({
+                          ...datosModificacion,
+                          cliNombre: e.target.value,
+                        })
+                      }
+                      className="border border-gray-400 dark:border-gray-500 dark:text-white flex-1 bg-white dark:bg-gray-600 px-1 py-0.5 text-xs"
+                    />
+                  ) : (
+                    <input
+                      type="text"
+                      value={clienteActual?.cliNombre || ""}
+                      readOnly
+                      className="border border-gray-400 dark:border-gray-500 dark:text-white flex-1 bg-gray-100 dark:bg-gray-600 px-1 py-0.5 text-xs"
+                    />
+                  )}
                 </div>
+
                 {/* Dir - Tel */}
                 <div className="col-span-2">
                   <label className="font-bold text-xs mb-0.5 text-gray-900 block dark:text-white">
                     Dirección
                   </label>
-                  <input
-                    type="text"
-                    value={clienteActual?.cliCalle || ""}
-                    readOnly
-                    className="border border-gray-400 dark:border-gray-500 dark:text-white w-full bg-gray-100
-                    dark:bg-gray-600 px-1 py-0.5 text-xs"
-                  />
+                  {editandoNuevoCliente ? (
+                    <input
+                      type="text"
+                      value={nuevoClienteData.cliCalle}
+                      onChange={(e) =>
+                        setNuevoClienteData({
+                          ...nuevoClienteData,
+                          cliCalle: e.target.value,
+                        })
+                      }
+                      className="border border-gray-400 dark:border-gray-500 dark:text-white w-full bg-white dark:bg-gray-600 px-1 py-0.5 text-xs"
+                    />
+                  ) : modoModificacion ? (
+                    <input
+                      type="text"
+                      value={datosModificacion.cliCalle}
+                      onChange={(e) =>
+                        setDatosModificacion({
+                          ...datosModificacion,
+                          cliCalle: e.target.value,
+                        })
+                      }
+                      className="border border-gray-400 dark:border-gray-500 dark:text-white w-full bg-white dark:bg-gray-600 px-1 py-0.5 text-xs"
+                    />
+                  ) : (
+                    <input
+                      type="text"
+                      value={clienteActual?.cliCalle || ""}
+                      readOnly
+                      className="border border-gray-400 dark:border-gray-500 dark:text-white w-full bg-gray-100 dark:bg-gray-600 px-1 py-0.5 text-xs"
+                    />
+                  )}
                 </div>
                 {/* Plazo (Dias) */}
                 <div className="col-span-2">
                   <label className="font-bold text-xs mb-0.5 text-gray-900 block dark:text-white">
                     Plazo (Dias)
                   </label>
-                  <input
-                    type="text"
-                    value={clienteActual?.tarjetaActiva?.tiempo || ""}
-                    readOnly
-                    className="border border-gray-400 dark:border-gray-500 dark:text-white w-full bg-gray-100
-                    dark:bg-gray-600 px-1 py-0.5 text-xs"
-                  />
+                  {editandoNuevoCliente ? (
+                    <input
+                      type="number"
+                      value={nuevoClienteData.tiempo}
+                      onChange={(e) =>
+                        setNuevoClienteData({
+                          ...nuevoClienteData,
+                          tiempo: e.target.value,
+                        })
+                      }
+                      className="border border-gray-400 dark:border-gray-500 dark:text-white w-full bg-white dark:bg-gray-600 px-1 py-0.5 text-xs"
+                    />
+                  ) : modoModificacion ? (
+                    <input
+                      type="number"
+                      value={datosModificacion.tiempo}
+                      onChange={(e) =>
+                        setDatosModificacion({
+                          ...datosModificacion,
+                          tiempo: e.target.value,
+                        })
+                      }
+                      className="border border-gray-400 dark:border-gray-500 dark:text-white w-full bg-white dark:bg-gray-600 px-1 py-0.5 text-xs"
+                    />
+                  ) : (
+                    <input
+                      type="text"
+                      value={clienteActual?.tarjetaActiva?.tiempo || ""}
+                      readOnly
+                      className="border border-gray-400 dark:border-gray-500 dark:text-white w-full bg-gray-100 dark:bg-gray-600 px-1 py-0.5 text-xs"
+                    />
+                  )}
                 </div>
                 {/* FP */}
                 <div className="col-span-1">
                   <label className="font-bold text-xs mb-0.5 text-gray-900 block dark:text-white">
                     FP
                   </label>
-                  <input
-                    type="text"
-                    value={clienteActual?.tarjetaActiva?.fp || ""}
-                    readOnly
-                    className="border-2 border-gray-300 dark:text-white dark:border-blue-400 w-full
-                    bg-gray-100 dark:bg-gray-600 px-1 py-0.5 text-xs"
-                  />
+                  {editandoNuevoCliente ? (
+                    <select
+                      value={nuevoClienteData.fp}
+                      onChange={(e) =>
+                        setNuevoClienteData({
+                          ...nuevoClienteData,
+                          fp: e.target.value,
+                        })
+                      }
+                      className="border border-gray-400 dark:border-gray-500 dark:text-white w-full bg-white dark:bg-gray-600 px-1 py-0.5 text-xs"
+                    >
+                      <option value="Diario">DIARIO</option>
+                      <option value="Semanal">SEMANAL</option>
+                      <option value="Quincenal">QUINCENAL</option>
+                      <option value="Mensual">MENSUAL</option>
+                    </select>
+                  ) : modoModificacion ? (
+                    <select
+                      value={datosModificacion.fp}
+                      onChange={(e) =>
+                        setDatosModificacion({
+                          ...datosModificacion,
+                          fp: e.target.value,
+                        })
+                      }
+                      className="border border-gray-400 dark:border-gray-500 dark:text-white w-full bg-white dark:bg-gray-600 px-1 py-0.5 text-xs"
+                    >
+                      <option value="Diario">DIARIO</option>
+                      <option value="Semanal">SEMANAL</option>
+                      <option value="Quincenal">QUINCENAL</option>
+                      <option value="Mensual">MENSUAL</option>
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={clienteActual?.tarjetaActiva?.fp || ""}
+                      readOnly
+                      className="border-2 border-gray-300 dark:text-white dark:border-blue-400 w-full bg-gray-100 dark:bg-gray-600 px-1 py-0.5 text-xs"
+                    />
+                  )}
                 </div>
                 {/* Dias Vencidos */}
                 <div className="col-span-2">
@@ -493,13 +971,27 @@ const AbonoForm: React.FC = () => {
                   <label className="font-bold text-xs mb-0.5 text-gray-900 block dark:text-white">
                     Valor
                   </label>
-                  <input
-                    type="text"
-                    value={clienteActual?.tarjetaActiva?.tarValor || ""}
-                    readOnly
-                    className="border border-gray-400 dark:border-gray-500 dark:text-white w-full bg-gray-100
+                  {editandoNuevoCliente ? (
+                    <input
+                      type="number"
+                      value={nuevoClienteData.tarValor}
+                      onChange={(e) =>
+                        setNuevoClienteData({
+                          ...nuevoClienteData,
+                          tarValor: e.target.value,
+                        })
+                      }
+                      className="border border-gray-400 dark:border-gray-500 dark:text-white w-full bg-white dark:bg-gray-600 px-1 py-0.5 text-xs"
+                    />
+                  ) : (
+                    <input
+                      type="text"
+                      value={clienteActual?.tarjetaActiva?.tarValor || ""}
+                      readOnly
+                      className="border border-gray-400 dark:border-gray-500 dark:text-white w-full bg-gray-100
                     dark:bg-gray-600 px-1 py-0.5 text-xs"
-                  />
+                    />
+                  )}
                 </div>
                 {/* Cuota */}
                 <div className="col-span-2">
@@ -508,10 +1000,35 @@ const AbonoForm: React.FC = () => {
                   </label>
                   <input
                     type="text"
-                    value={clienteActual?.tarjetaActiva?.tarCuota || ""}
+                    value={
+                      editandoNuevoCliente &&
+                      nuevoClienteData.tarValor &&
+                      nuevoClienteData.tiempo
+                        ? (() => {
+                            const valor = Number(nuevoClienteData.tarValor);
+                            const plazo = Number(nuevoClienteData.tiempo);
+                            const fp = nuevoClienteData.fp;
+                            if (isNaN(valor) || isNaN(plazo) || plazo <= 0)
+                              return "";
+                            const diasPorCuota = getDiasPorFrecuencia(fp);
+                            const numCuotas = Math.ceil(plazo / diasPorCuota);
+                            return Math.ceil(valor / numCuotas);
+                          })()
+                        : modoModificacion &&
+                          clienteActual?.tarjetaActiva?.tarValor
+                        ? (() => {
+                            const valor = clienteActual.tarjetaActiva.tarValor;
+                            const plazo = Number(datosModificacion.tiempo);
+                            const fp = datosModificacion.fp;
+                            if (isNaN(plazo) || plazo <= 0) return "";
+                            const diasPorCuota = getDiasPorFrecuencia(fp);
+                            const numCuotas = Math.ceil(plazo / diasPorCuota);
+                            return Math.ceil(valor / numCuotas);
+                          })()
+                        : clienteActual?.tarjetaActiva?.tarCuota || ""
+                    }
                     readOnly
-                    className="border border-gray-400 dark:border-gray-500 dark:text-white w-full bg-gray-100
-                    dark:bg-gray-600 px-1 py-0.5 text-xs"
+                    className="border border-gray-400 dark:border-gray-500 dark:text-white w-full bg-gray-100 dark:bg-gray-600 px-1 py-0.5 text-xs"
                   />
                 </div>
                 {/* Fecha */}
@@ -519,17 +1036,55 @@ const AbonoForm: React.FC = () => {
                   <label className="font-bold text-xs mb-0.5 text-gray-900 block dark:text-white">
                     Fecha <span className="italic">( dd-mm-aa )</span>
                   </label>
-                  <input
-                    type="text"
-                    value={
-                      clienteActual?.tarjetaActiva
-                        ? formatFecha(clienteActual.tarjetaActiva.tarFecha)
-                        : ""
-                    }
-                    readOnly
-                    className="border border-gray-400 dark:border-gray-500 dark:text-white w-full bg-gray-100
-                    dark:bg-gray-600 px-1 py-0.5 text-xs"
-                  />
+                  {editandoNuevoCliente ? (
+                    <input
+                      type="text"
+                      value={nuevoClienteData.tarFecha}
+                      onChange={(e) => {
+                        let value = e.target.value;
+
+                        // Eliminar todo lo que no sea número
+                        value = value.replace(/\D/g, "");
+
+                        // Aplicar límite de 6 dígitos
+                        if (value.length > 6) {
+                          value = value.slice(0, 6);
+                        }
+
+                        // Formatear como dd-mm-aa SOLO si tiene suficientes dígitos
+                        let formatted = value;
+                        if (value.length > 2) {
+                          formatted = value.slice(0, 2) + "-" + value.slice(2);
+                        }
+                        if (value.length > 4) {
+                          formatted =
+                            value.slice(0, 2) +
+                            "-" +
+                            value.slice(2, 4) +
+                            "-" +
+                            value.slice(4);
+                        }
+
+                        setNuevoClienteData({
+                          ...nuevoClienteData,
+                          tarFecha: formatted,
+                        });
+                      }}
+                      placeholder="dd-mm-aa"
+                      className="border border-gray-400 dark:border-gray-500 dark:text-white w-full bg-white dark:bg-gray-600 px-1 py-0.5 text-xs"
+                    />
+                  ) : (
+                    <input
+                      type="text"
+                      value={
+                        clienteActual?.tarjetaActiva
+                          ? formatFecha(clienteActual.tarjetaActiva.tarFecha)
+                          : ""
+                      }
+                      readOnly
+                      className="border border-gray-400 dark:border-gray-500 dark:text-white w-full bg-gray-100 dark:bg-gray-600 px-1 py-0.5 text-xs"
+                    />
+                  )}
                 </div>
                 {/* Saldo */}
                 <div className="col-span-2">
@@ -538,10 +1093,10 @@ const AbonoForm: React.FC = () => {
                   </label>
                   <input
                     type="text"
-                    value={clienteActual?.saldoTotal || ""}
+                    value={saldoActual}
                     readOnly
                     className="border border-gray-400 dark:border-gray-500 dark:text-white w-32 bg-green-300
-                    dark:bg-green-600 px-1 py-0.5 text-xs font-bold text-center"
+    dark:bg-green-600 px-1 py-0.5 text-xs font-bold text-center"
                   />
                 </div>
               </div>
@@ -581,13 +1136,25 @@ const AbonoForm: React.FC = () => {
                     </div>
                     <div className="mb-0.5">
                       <label className="items-center text-xs text-gray-600 flex dark:text-gray-300">
-                        <input name="cliente" type="radio" className="mr-1" />
+                        <input
+                          type="radio"
+                          className="mr-1"
+                          name="posicion-nuevo"
+                          checked={modoNuevoCliente === "antes"}
+                          onChange={() => setModoNuevoCliente("antes")}
+                        />
                         <span>Antes</span>
                       </label>
                     </div>
                     <div>
                       <label className="items-center text-xs text-gray-600 flex dark:text-gray-300">
-                        <input name="cliente" type="radio" className="mr-1" />
+                        <input
+                          type="radio"
+                          className="mr-1"
+                          name="posicion-nuevo"
+                          checked={modoNuevoCliente === "despues"}
+                          onChange={() => setModoNuevoCliente("despues")}
+                        />
                         <span>Despues</span>
                       </label>
                     </div>
@@ -664,7 +1231,15 @@ const AbonoForm: React.FC = () => {
                       type="number"
                       placeholder="Abono"
                       value={montoAbono}
-                      onChange={(e) => handleAbonoChange(e.target.value)}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (value === "") {
+                          setMontoAbono("");
+                        } else {
+                          const num = parseInt(value, 10);
+                          setMontoAbono(isNaN(num) ? "" : num);
+                        }
+                      }}
                       onKeyDown={handleAbonoKeyDown}
                       className="border border-gray-600 p-1 w-20 text-center bg-yellow-200 font-bold"
                     />
@@ -673,9 +1248,15 @@ const AbonoForm: React.FC = () => {
                       type="number"
                       placeholder="Saldo"
                       value={saldoEscrito}
-                      onChange={(e) =>
-                        setSaldoEscrito(parseInt(e.target.value) || "")
-                      }
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (value === "") {
+                          setSaldoEscrito("");
+                        } else {
+                          const num = parseFloat(value);
+                          setSaldoEscrito(isNaN(num) ? "" : num);
+                        }
+                      }}
                       onKeyDown={handleSaldoKeyDown}
                       className="border border-gray-600 p-1 w-20 text-center bg-green-200 font-bold"
                     />
@@ -688,6 +1269,7 @@ const AbonoForm: React.FC = () => {
                 <div className="mb-0.5 flex gap-1">
                   <button
                     type="button"
+                    onClick={cancelarOperacion}
                     className="flex-1 border-2 border-gray-400 dark:border-gray-500 dark:text-white
                       bg-white dark:bg-gray-600 px-2 py-0.5 text-xs hover:bg-gray-200 transition-colors"
                   >
@@ -695,15 +1277,22 @@ const AbonoForm: React.FC = () => {
                   </button>
                   <button
                     type="button"
-                    className="flex-1 border-2 border-gray-400 dark:border-gray-500 dark:text-white
-                      bg-white dark:bg-gray-600 px-2 py-0.5 text-xs hover:bg-gray-200 transition-colors"
+                    onClick={
+                      modoModificacion
+                        ? guardarModificacion
+                        : handleGuardarNuevoCliente
+                    }
+                    className="flex-1 border-2 border-gray-400 dark:border-gray-500 dark:text-white bg-white dark:bg-gray-600 px-2 py-0.5 text-xs hover:bg-gray-200 transition-colors"
                   >
                     Guardar
                   </button>
                   <button
                     type="button"
-                    className="flex-1 border-2 border-gray-400 dark:border-gray-500 dark:text-white
-                      bg-white dark:bg-gray-600 px-2 py-0.5 text-xs hover:bg-gray-200 transition-colors"
+                    onClick={() => {
+                      setEditandoNuevoCliente(true);
+                      setModoModificacion(false);
+                    }}
+                    className="flex-1 border-2 border-gray-400 dark:border-gray-500 dark:text-white bg-white dark:bg-gray-600 px-2 py-0.5 text-xs hover:bg-gray-200 transition-colors"
                   >
                     Nuevo Cliente
                   </button>
@@ -715,9 +1304,10 @@ const AbonoForm: React.FC = () => {
                   >
                     Abono
                   </button>
-
                   <button
                     type="button"
+                    onClick={iniciarModificacion}
+                    disabled={!clienteActual}
                     className="flex-1 border-2 border-gray-400 dark:border-gray-500 dark:text-white
                       bg-white dark:bg-gray-600 px-2 py-0.5 text-xs hover:bg-gray-200 transition-colors"
                   >

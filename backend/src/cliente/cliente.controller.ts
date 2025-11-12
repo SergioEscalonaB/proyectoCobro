@@ -1,5 +1,7 @@
 import { Controller, Get, Post, Body, Delete, Param, Put, Query, BadRequestException, NotFoundException } from '@nestjs/common';
 import { ClienteService } from './cliente.service';
+import { TarjetaService } from '../tarjeta/tarjeta.service';
+
 
 @Controller('clientes')
 export class ClienteController {
@@ -35,10 +37,32 @@ export class ClienteController {
   }
 
   // Actualizar un cliente existente
-  @Put(':cliCodigo')
-  actualizarCliente(@Param('cliCodigo') cliCodigo: string, @Body() data: any) {
-    return this.clienteService.actualizarCliente(cliCodigo, data);
+@Put(':cliCodigo')
+async actualizarCliente(
+  @Param('cliCodigo') cliCodigo: string,
+  @Body() body: any,
+) {
+  const { cliNombre, cliCalle, tiempo, fp, tarCuota } = body;
+
+  // 1. Actualizar cliente
+  if (cliNombre !== undefined || cliCalle !== undefined) {
+    await this.clienteService.actualizarClienteBasico(Number(cliCodigo), {
+      cliNombre,
+      cliCalle,
+    });
   }
+
+  // 2. Actualizar tarjeta activa
+  if (tiempo !== undefined || fp !== undefined || tarCuota !== undefined) {
+    await this.clienteService.actualizarTarjetaActiva(Number(cliCodigo), {
+  tiempo,
+  fp,
+  tarCuota,
+});
+  }
+
+  return { message: 'Cliente y tarjeta actualizados correctamente' };
+}
 
   // Eliminar un cliente por su código
   @Delete(':cliCodigo')

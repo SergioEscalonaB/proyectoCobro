@@ -556,6 +556,39 @@ export class ClienteService {
     });
   }
 
+  async actualizarClienteBasico(
+    cliCodigo: number,
+    data: { cliNombre?: string; cliCalle?: string },
+  ) {
+    return this.prisma.cliente.update({
+      where: { cliCodigo },
+      data,
+    });
+  }
+
+  async actualizarTarjetaActiva(cliCodigo: number, data: any) {
+    const { tiempo, fp, tarCuota } = data; // Solo campos permitidos
+
+    const tarjetaActiva = await this.prisma.tarjeta.findFirst({
+      where: {
+        cliente: { cliCodigo },
+        estado: 'Activa', // ✅ ¡IMPRESIONANTE!
+      },
+      orderBy: { iten: 'asc' },
+    });
+
+    if (!tarjetaActiva) {
+      throw new NotFoundException(
+        'No se encontró una tarjeta activa para este cliente',
+      );
+    }
+
+    return this.prisma.tarjeta.update({
+      where: { tarCodigo: tarjetaActiva.tarCodigo },
+      data: { tiempo, fp, tarCuota },
+    });
+  }
+
   // Obtener estado real
   async obtenerEstadoReal(cliCodigo: string) {
     const cliente = await this.prisma.cliente.findUnique({

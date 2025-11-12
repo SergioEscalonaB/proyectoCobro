@@ -16,7 +16,10 @@ export class TarjetaService {
    * @param data - Datos de la nueva tarjeta
    * @param insertarPosicion - { referencia: number, modo: 'antes' | 'despues' } (opcional)
    */
-  async crearTarjeta(data: any, insertarPosicion?: { referencia: number; modo: 'antes' | 'despues' }) {
+  async crearTarjeta(
+    data: any,
+    insertarPosicion?: { referencia: number; modo: 'antes' | 'despues' },
+  ) {
     // --- Si no hay posicion especial, se asigna al final ---
     if (!insertarPosicion) {
       const maxIten = await prisma.tarjeta.aggregate({
@@ -39,7 +42,9 @@ export class TarjetaService {
     });
 
     if (!tarjetaRef) {
-      throw new BadRequestException(`No existe una tarjeta activa con iten ${referencia}`);
+      throw new BadRequestException(
+        `No existe una tarjeta activa con iten ${referencia}`,
+      );
     }
 
     const nuevoIten = modo === 'antes' ? tarjetaRef.iten : tarjetaRef.iten + 1;
