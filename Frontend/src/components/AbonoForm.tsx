@@ -515,13 +515,22 @@ const AbonoForm: React.FC = () => {
         `http://localhost:3000/clientes/cobrador/${cobCodigo}/todos`
       );
       if (!response.ok) throw new Error("Error al cargar la lista de clientes");
+      const todosLosClientes: Cliente[] = await response.json();
 
-      const clientes: Cliente[] = await response.json();
-      setTotalClientes(clientes.length);
+      // 🔥 Filtrar solo los clientes activos (con tarjetaActiva)
+      const clientesActivos = todosLosClientes.filter(
+        (cliente) => cliente.tarjetaActiva !== null
+      );
 
-      const indice = clientes.findIndex(
+      // Establecer el total de clientes ACTIVOS
+      setTotalClientes(clientesActivos.length);
+
+      // Encontrar la posición del cliente actual DENTRO de la lista de clientes activos
+      const indice = clientesActivos.findIndex(
         (cliente) => cliente.cliCodigo === cliCodigoActual
       );
+
+      // Si el cliente actual es activo, su posición será >= 0. Si no, será -1.
       setPosicionCliente(indice !== -1 ? indice + 1 : null);
     } catch (err: any) {
       console.error("Error al cargar posición del cliente:", err);
