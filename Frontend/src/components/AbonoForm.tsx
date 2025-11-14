@@ -49,7 +49,6 @@ const getDiasPorFrecuencia = (fp: string): number => {
 
 const AbonoForm: React.FC = () => {
   // Estados
-  const [liquidacionActiva, setLiquidacionActiva] = useState(false);
 
   const [cobradores, setCobradores] = useState<Cobrador[]>([]);
   const [cobradorSeleccionado, setCobradorSeleccionado] = useState<string>("");
@@ -93,6 +92,30 @@ const AbonoForm: React.FC = () => {
 
   const [clientesExistentes, setClientesExistentes] = useState<Cliente[]>([]);
   const [mostrarListaClientes, setMostrarListaClientes] = useState(false);
+
+  // Nuevo estado para liquidación activa
+  const [liquidacionActiva, setLiquidacionActiva] = useState(false);
+
+  // Estados para cálculo de liquidación
+  const [totalAbonos, setTotalAbonos] = useState<number>(0);
+  const [totalPrestamos, setTotalPrestamos] = useState<number>(0);
+  const [gastos, setGastos] = useState<number>(0);
+  const [otrGas, setOtrGas] = useState<number>(0);
+  const [base, setBase] = useState<number>(0);
+  const [descuento, setDescuento] = useState<number>(0);
+  const [efectivoIngresado, setEfectivoIngresado] = useState<number>(0);
+  const [abonoProcesando, setAbonoProcesando] = useState(false);
+
+  // ✅ Valores acumulados
+  const cobro = totalAbonos; // ✅ total de abonos = cobro
+  const prestamo = totalPrestamos; // ✅ total de nuevos préstamos
+
+  // ✅ Cálculo del efectivo esperado
+  const efectivoEsperado =
+    cobro - prestamo - gastos - otrGas + base - descuento;
+
+  // ✅ Diferencia: lo que se ingresó vs lo que debería haber
+  const diferencia = efectivoIngresado - efectivoEsperado;
 
   const cargarClientesExistentes = async () => {
     try {
@@ -252,6 +275,7 @@ const AbonoForm: React.FC = () => {
     // Validar campos obligatorios
     const { cliCodigo, cliNombre, cliCalle, tarValor, tiempo, fp, tarFecha } =
       nuevoClienteData;
+
     if (!cliCodigo || !cliNombre || !tarValor || !tiempo || !tarFecha) {
       alert("Complete todos los campos obligatorios");
       return;
@@ -266,7 +290,7 @@ const AbonoForm: React.FC = () => {
 
     const diasPorCuota = getDiasPorFrecuencia(fp);
     const numCuotas = Math.ceil(plazo / diasPorCuota);
-    const cuota = Math.floor(Math.ceil(valor / numCuotas));
+    const cuota = Math.ceil(valor / numCuotas); // 👈 redondeo arriba (mejor cobertura)
 
     // Convertir fecha corta a ISO
     const fechaISO = convertirFechaCortaAISO(tarFecha);
@@ -282,7 +306,7 @@ const AbonoForm: React.FC = () => {
       tarValor: valor,
       tarCuota: cuota,
       tiempo: plazo,
-      fp: fp, //
+      fp,
       tarFecha: fechaISO,
       cobCodigo: cobradorSeleccionado,
     };
@@ -291,12 +315,11 @@ const AbonoForm: React.FC = () => {
       setCargando(true);
       setError("");
 
-      // Construir URL: con o sin referencia
+      // Construir URL: con o sin referencia (solo si hay cliente actual con tarjeta activa)
       let url = "http://localhost:3000/clientes";
       if (clienteActual?.tarjetaActiva?.iten) {
-        // Solo si tiene tarjeta activa
         const queryParams = new URLSearchParams({
-          referencia: clienteActual.tarjetaActiva.iten.toString(), // ← ITEN, no cliCodigo!
+          referencia: clienteActual.tarjetaActiva.iten.toString(),
           modo: modoNuevoCliente,
         }).toString();
         url += `?${queryParams}`;
@@ -313,6 +336,11 @@ const AbonoForm: React.FC = () => {
         throw new Error(errorData.message || "Error al crear el cliente");
       }
 
+      // ✅ ✅ ✅ SOLO ACÁ: acumular préstamo (el cliente y tarjeta ya existen)
+      if (liquidacionActiva) {
+        setTotalPrestamos((prev) => prev + valor);
+      }
+
       alert("✅ Cliente creado exitosamente");
       setEditandoNuevoCliente(false);
       setNuevoClienteData({
@@ -325,27 +353,25 @@ const AbonoForm: React.FC = () => {
         tarFecha: "",
       });
 
-      // Recargar la lista
-      // Recargar el cliente recién creado por su cédula
+      // Recargar cliente recién creado
       try {
-        const response = await fetch(
-          `http://localhost:3000/clientes/${cliCodigo}`
-        );
-        if (response.ok) {
-          const clienteCreado = await response.json();
+        const res = await fetch(`http://localhost:3000/clientes/${cliCodigo}`);
+        if (res.ok) {
+          const clienteCreado = await res.json();
           setClienteActual(clienteCreado);
           setError("");
         } else {
-          // Si no existe aún, ir al primero (por seguridad)
+          // Si no se encuentra, volver al primero (fallback seguro)
           await cargarPrimerCliente(cobradorSeleccionado);
         }
       } catch (err) {
-        console.error("Error al cargar cliente recién creado:", err);
+        console.error("Error al recargar cliente recién creado:", err);
         await cargarPrimerCliente(cobradorSeleccionado);
       }
     } catch (err: any) {
-      console.error("Error:", err);
-      setError(`Error: ${err.message}`);
+      console.error("Error en handleGuardarNuevoCliente:", err);
+      setError(`❌ ${err.message || "Error al crear el cliente"}`);
+      alert(`❌ ${err.message || "Error al crear el cliente"}`);
     } finally {
       setCargando(false);
     }
@@ -432,38 +458,40 @@ const AbonoForm: React.FC = () => {
     typeof montoAbono === "number" ? saldoActual - montoAbono : saldoActual;
 
   const procesarAbono = async () => {
-    if (
-      !clienteActual?.tarjetaActiva?.tarCodigo ||
-      montoAbono === "" ||
-      saldoEscrito === ""
-    ) {
-      alert("⚠️ Datos incompletos");
-      return;
-    }
-
-    const abono = Number(montoAbono);
-    const saldo = Number(saldoEscrito);
-
-    // Validar que sean enteros
-    if (!Number.isInteger(abono) || !Number.isInteger(saldo)) {
-      alert("❌ Los montos deben ser números enteros");
-      return;
-    }
-
-    // Validar cálculo local (opcional, backend también valida)
-    if (saldoActual - abono !== saldo) {
-      alert("❌ El saldo no coincide con la resta");
-      return;
-    }
-
-    const payload = {
-      tarCodigo: clienteActual.tarjetaActiva.tarCodigo, // ← ¡CRUCIAL!
-      desAbono: abono,
-      desResta: saldo,
-      // fechaAct y desFecha: el backend las asigna si no vienen
-    };
+    if (abonoProcesando) return;
+    setAbonoProcesando(true);
 
     try {
+      if (
+        !clienteActual?.tarjetaActiva?.tarCodigo ||
+        montoAbono === "" ||
+        saldoEscrito === ""
+      ) {
+        alert("⚠️ Datos incompletos");
+        return;
+      }
+
+      const abono = Number(montoAbono);
+      const saldo = Number(saldoEscrito);
+
+      // Validar que sean enteros
+      if (!Number.isInteger(abono) || !Number.isInteger(saldo)) {
+        alert("❌ Los montos deben ser números enteros");
+        return;
+      }
+
+      // Validar cálculo local
+      if (saldoActual - abono !== saldo) {
+        alert("❌ El saldo no coincide con la resta");
+        return;
+      }
+
+      const payload = {
+        tarCodigo: clienteActual.tarjetaActiva.tarCodigo,
+        desAbono: abono,
+        desResta: saldo,
+      };
+
       const response = await fetch("http://localhost:3000/descripciones", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -475,17 +503,22 @@ const AbonoForm: React.FC = () => {
         throw new Error(errorData.message || "Error al guardar el abono");
       }
 
-      // ✅ Recargar descripciones y avanzar
+      if (liquidacionActiva) {
+        setTotalAbonos((prev) => prev + abono);
+      }
+
       await cargarDescripcionAbonos(clienteActual.cliCodigo);
       await navegarCliente("siguiente");
 
-      // Reset
       setMontoAbono("");
       setSaldoEscrito("");
       abonoInputRef.current?.focus();
     } catch (error: any) {
       console.error("Error:", error);
       alert(`❌ ${error.message || "Error al guardar el abono"}`);
+    } finally {
+      // 💯 IMPORTANTE: liberar el candado SIEMPRE
+      setAbonoProcesando(false);
     }
   };
 
@@ -1434,9 +1467,10 @@ const AbonoForm: React.FC = () => {
                   COBRO
                 </label>
                 <input
-                  type="text"
-                  className="border border-gray-400 dark:border-gray-500 dark:text-white bg-white
-              dark:bg-gray-600 px-1 py-0.5 text-xs col-span-2"
+                  type="number"
+                  value={totalAbonos}
+                  readOnly
+                  className="border border-gray-400 dark:border-gray-500 dark:text-white bg-white dark:bg-gray-600 px-1 py-0.5 text-xs col-span-2 text-left"
                 />
               </div>
 
@@ -1445,9 +1479,10 @@ const AbonoForm: React.FC = () => {
                   - PRESTAMO
                 </label>
                 <input
-                  type="text"
-                  className="border border-gray-400 dark:border-gray-500 dark:text-white bg-white
-              dark:bg-gray-600 px-1 py-0.5 text-xs col-span-2"
+                  type="number"
+                  value={totalPrestamos}
+                  readOnly
+                  className="border border-gray-400 dark:border-gray-500 dark:text-white bg-white dark:bg-gray-600 px-1 py-0.5 text-xs col-span-2 text-left"
                 />
               </div>
 
@@ -1455,19 +1490,21 @@ const AbonoForm: React.FC = () => {
                 <label className="text-left text-xs font-bold text-blue-600 dark:text-blue-400 col-span-2 ml-4">
                   - GASTOS
                 </label>
-                <div className="flex gap-0.5 col-span-2">
+                <div className="flex gap-0.5 col-span-">
                   <input
-                    type="text"
-                    className="flex-1 border border-gray-400 dark:border-gray-500 dark:text-white w-24 bg-white
-                dark:bg-gray-600 px-1 py-0.5 text-xs"
+                    type="number"
+                    value={gastos}
+                    onChange={(e) => setGastos(Number(e.target.value) || 0)}
+                    className="flex-1 border border-gray-400 dark:border-gray-500 dark:text-white bg-white dark:bg-gray-600 px-1 py-0.5 text-xs text-left"
                   />
                   <label className="text-xs font-bold text-gray-900 dark:text-white whitespace-nowrap">
                     Otr Gas
                   </label>
                   <input
-                    type="text"
-                    className="border border-gray-400 dark:border-gray-500 dark:text-white w-20 bg-white
-                dark:bg-gray-600 px-1 py-0.5 text-xs"
+                    type="number"
+                    value={otrGas}
+                    onChange={(e) => setOtrGas(Number(e.target.value) || 0)}
+                    className="border border-gray-400 dark:border-gray-500 dark:text-white bg-white dark:bg-gray-600 px-1 py-0.5 text-xs text-left w-20"
                   />
                 </div>
               </div>
@@ -1477,9 +1514,10 @@ const AbonoForm: React.FC = () => {
                   + BASE
                 </label>
                 <input
-                  type="text"
-                  className="border border-gray-400 dark:border-gray-500 dark:text-white bg-white
-              dark:bg-gray-600 px-1 py-0.5 text-xs col-span-2"
+                  type="number"
+                  value={base}
+                  onChange={(e) => setBase(Number(e.target.value) || 0)}
+                  className="border border-gray-400 dark:border-gray-500 dark:text-white bg-white dark:bg-gray-600 px-1 py-0.5 text-xs col-span-2 text-left"
                 />
               </div>
 
@@ -1488,9 +1526,10 @@ const AbonoForm: React.FC = () => {
                   - DESCUENTO
                 </label>
                 <input
-                  type="text"
-                  className="border border-gray-400 dark:border-gray-500 dark:text-white bg-white
-              dark:bg-gray-600 px-1 py-0.5 text-xs col-span-2"
+                  type="number"
+                  value={descuento}
+                  onChange={(e) => setDescuento(Number(e.target.value) || 0)}
+                  className="border border-gray-400 dark:border-gray-500 dark:text-white bg-white dark:bg-gray-600 px-1 py-0.5 text-xs col-span-2 text-left"
                 />
               </div>
 
@@ -1499,9 +1538,12 @@ const AbonoForm: React.FC = () => {
                   Efectivo
                 </label>
                 <input
-                  type="text"
-                  className="border border-gray-400 dark:border-gray-500 dark:text-white bg-white
-              dark:bg-gray-600 px-1 py-0.5 text-xs col-span-2"
+                  type="number"
+                  value={efectivoIngresado}
+                  onChange={(e) =>
+                    setEfectivoIngresado(Number(e.target.value) || 0)
+                  }
+                  className="border border-gray-400 dark:border-gray-500 dark:text-white bg-white dark:bg-gray-600 px-1 py-0.5 text-xs col-span-2 text-left"
                 />
               </div>
 
@@ -1563,12 +1605,25 @@ const AbonoForm: React.FC = () => {
               </div>
 
               <button
-                type="submit"
-                onClick={() => setLiquidacionActiva(true)}
-                className="border-2 border-gray-400 dark:border-gray-500 dark:text-white w-full bg-white
-            dark:bg-gray-600 px-2 py-1 text-l font-bold mb-1"
+                type="button"
+                onClick={() => {
+                  setLiquidacionActiva(true);
+                  setTotalAbonos(0);
+                  setTotalPrestamos(0);
+                  setGastos(0);
+                  setOtrGas(0);
+                  setBase(0);
+                  setDescuento(0);
+                  setEfectivoIngresado(0);
+                }}
+                disabled={liquidacionActiva}
+                className={`border-2 w-full px-2 py-1 text-xs font-bold mb-1 ${
+                  liquidacionActiva
+                    ? "border-gray-400 bg-gray-200 text-gray-500 cursor-not-allowed"
+                    : "border-green-600 bg-green-500 text-white hover:bg-green-600"
+                }`}
               >
-                Iniciar Liquidacion
+                Iniciar Liquidación
               </button>
 
               <button
