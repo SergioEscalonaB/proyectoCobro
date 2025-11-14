@@ -818,6 +818,50 @@ export class ClienteService {
     };
   }
 
+  // Obtener el ultimo cliente (activo) por cobrador
+  async obtenerUltimoClientePorCobrador(cobCodigo: string) {
+    const ultimaTarjeta = await this.prisma.tarjeta.findFirst({
+      where: {
+        estado: 'Activa',
+        cliente: { cobCodigo: cobCodigo },
+      },
+      orderBy: { iten: 'desc' }, // ← ¡clave!
+      include: {
+        cliente: {
+          include: {
+            cobro: true,
+            tarjetas: {
+              where: { estado: 'Activa' },
+              include: {
+                descripciones: {
+                  orderBy: { desFecha: 'desc' },
+                  take: 1,
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!ultimaTarjeta) {
+      throw new NotFoundException(
+        `No hay clientes activos para el cobrador ${cobCodigo}`,
+      );
+    }
+
+    const cliente = ultimaTarjeta.cliente;
+    const saldoTotal = this.getSaldoPendiente(ultimaTarjeta);
+    const estado = saldoTotal > 0 ? 'Activo' : 'Inactivo';
+
+    return {
+      ...cliente,
+      estado,
+      saldoTotal,
+      tarjetaActiva: { ...ultimaTarjeta, saldoActual: saldoTotal },
+    };
+  }
+
   // Navegar entre clientes por cobrador
   async navegarEntreClientesPorCobrador(
     itenActual: number,

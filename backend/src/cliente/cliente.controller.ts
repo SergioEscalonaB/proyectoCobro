@@ -1,7 +1,16 @@
-import { Controller, Get, Post, Body, Delete, Param, Put, Query, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Delete,
+  Param,
+  Put,
+  Query,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { ClienteService } from './cliente.service';
-import { TarjetaService } from '../tarjeta/tarjeta.service';
-
 
 @Controller('clientes')
 export class ClienteController {
@@ -37,32 +46,32 @@ export class ClienteController {
   }
 
   // Actualizar un cliente existente
-@Put(':cliCodigo')
-async actualizarCliente(
-  @Param('cliCodigo') cliCodigo: string,
-  @Body() body: any,
-) {
-  const { cliNombre, cliCalle, tiempo, fp, tarCuota } = body;
+  @Put(':cliCodigo')
+  async actualizarCliente(
+    @Param('cliCodigo') cliCodigo: string,
+    @Body() body: any,
+  ) {
+    const { cliNombre, cliCalle, tiempo, fp, tarCuota } = body;
 
-  // 1. Actualizar cliente
-  if (cliNombre !== undefined || cliCalle !== undefined) {
-    await this.clienteService.actualizarClienteBasico(Number(cliCodigo), {
-      cliNombre,
-      cliCalle,
-    });
+    // 1. Actualizar cliente
+    if (cliNombre !== undefined || cliCalle !== undefined) {
+      await this.clienteService.actualizarClienteBasico(Number(cliCodigo), {
+        cliNombre,
+        cliCalle,
+      });
+    }
+
+    // 2. Actualizar tarjeta activa
+    if (tiempo !== undefined || fp !== undefined || tarCuota !== undefined) {
+      await this.clienteService.actualizarTarjetaActiva(Number(cliCodigo), {
+        tiempo,
+        fp,
+        tarCuota,
+      });
+    }
+
+    return { message: 'Cliente y tarjeta actualizados correctamente' };
   }
-
-  // 2. Actualizar tarjeta activa
-  if (tiempo !== undefined || fp !== undefined || tarCuota !== undefined) {
-    await this.clienteService.actualizarTarjetaActiva(Number(cliCodigo), {
-  tiempo,
-  fp,
-  tarCuota,
-});
-  }
-
-  return { message: 'Cliente y tarjeta actualizados correctamente' };
-}
 
   // Eliminar un cliente por su código
   @Delete(':cliCodigo')
@@ -90,15 +99,21 @@ async actualizarCliente(
     @Query('referencia') referencia?: string,
     @Query('modo') modo?: 'antes' | 'despues',
   ) {
-    const insertarPosicion = (referencia && modo) ? {
-      referencia: Number(referencia),
-      modo,
-    } : undefined;
+    const insertarPosicion =
+      referencia && modo
+        ? {
+            referencia: Number(referencia),
+            modo,
+          }
+        : undefined;
 
-    return this.clienteService.crearTarjetaParaClienteExistente({
-      ...data,
-      cliCodigo,
-    }, insertarPosicion);
+    return this.clienteService.crearTarjetaParaClienteExistente(
+      {
+        ...data,
+        cliCodigo,
+      },
+      insertarPosicion,
+    );
   }
 
   // ========== ENDPOINTS POR ITEN ==========
@@ -127,7 +142,9 @@ async actualizarCliente(
     @Query('direccion') direccion: 'siguiente' | 'anterior',
   ) {
     if (!iten || !direccion) {
-      throw new BadRequestException('Debe enviar los parámetros "iten" y "direccion".');
+      throw new BadRequestException(
+        'Debe enviar los parámetros "iten" y "direccion".',
+      );
     }
     return this.clienteService.navegarEntreClientes(Number(iten), direccion);
   }
@@ -143,18 +160,30 @@ async actualizarCliente(
   @Get('cobrador/:cobCodigo/iten/:iten/siguiente')
   obtenerClienteSiguientePorCobrador(
     @Param('cobCodigo') cobCodigo: string,
-    @Param('iten') iten: string
+    @Param('iten') iten: string,
   ) {
-    return this.clienteService.obtenerClienteSiguientePorCobrador(Number(iten), cobCodigo);
+    return this.clienteService.obtenerClienteSiguientePorCobrador(
+      Number(iten),
+      cobCodigo,
+    );
   }
 
   // Obtener el cliente anterior por su iten y cobrador
   @Get('cobrador/:cobCodigo/iten/:iten/anterior')
   obtenerClienteAnteriorPorCobrador(
     @Param('cobCodigo') cobCodigo: string,
-    @Param('iten') iten: string
+    @Param('iten') iten: string,
   ) {
-    return this.clienteService.obtenerClienteAnteriorPorCobrador(Number(iten), cobCodigo);
+    return this.clienteService.obtenerClienteAnteriorPorCobrador(
+      Number(iten),
+      cobCodigo,
+    );
+  }
+
+  // Obtener el último cliente asignado a un cobrador
+  @Get('cobrador/:cobCodigo/ultimo-cliente')
+  async obtenerUltimoCliente(@Param('cobCodigo') cobCodigo: string) {
+    return this.clienteService.obtenerUltimoClientePorCobrador(cobCodigo);
   }
 
   // Navegar entre clientes por cobrador
@@ -165,9 +194,15 @@ async actualizarCliente(
     @Query('direccion') direccion: 'siguiente' | 'anterior',
   ) {
     if (!iten || !direccion) {
-      throw new BadRequestException('Debe enviar los parámetros "iten" y "direccion".');
+      throw new BadRequestException(
+        'Debe enviar los parámetros "iten" y "direccion".',
+      );
     }
-    return this.clienteService.navegarEntreClientesPorCobrador(Number(iten), cobCodigo, direccion);
+    return this.clienteService.navegarEntreClientesPorCobrador(
+      Number(iten),
+      cobCodigo,
+      direccion,
+    );
   }
 
   // Obtener todos los clientes asignados a un cobrador

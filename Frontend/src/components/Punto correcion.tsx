@@ -49,6 +49,8 @@ const getDiasPorFrecuencia = (fp: string): number => {
 
 const AbonoForm: React.FC = () => {
   // Estados
+  const [liquidacionActiva, setLiquidacionActiva] = useState(false);
+
   const [cobradores, setCobradores] = useState<Cobrador[]>([]);
   const [cobradorSeleccionado, setCobradorSeleccionado] = useState<string>("");
   const [clienteActual, setClienteActual] = useState<Cliente | null>(null);
@@ -176,6 +178,25 @@ const AbonoForm: React.FC = () => {
       console.error("Error cargando cliente:", err);
       setError(`Error al cargar el cliente: ${err.message}`);
       setClienteActual(null);
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  const cargarUltimoCliente = async (cobCodigo: string) => {
+    try {
+      setCargando(true);
+      const response = await fetch(
+        `http://localhost:3000/clientes/cobrador/${cobCodigo}/ultimo-cliente`
+      );
+
+      if (!response.ok) throw new Error("No se pudo cargar el último cliente");
+
+      const cliente = await response.json();
+      setClienteActual(cliente);
+      setError("");
+    } catch (err: any) {
+      setError(err.message);
     } finally {
       setCargando(false);
     }
@@ -1279,8 +1300,12 @@ const AbonoForm: React.FC = () => {
                   <button
                     type="button"
                     onClick={cancelarOperacion}
-                    className="flex-1 border-2 border-gray-400 dark:border-gray-500 dark:text-white
-                      bg-white dark:bg-gray-600 px-2 py-0.5 text-xs hover:bg-gray-200 transition-colors"
+                    disabled={!liquidacionActiva}
+                    className={`flex-1 border-2 px-2 py-0.5 text-xs transition-colors ${
+                      liquidacionActiva
+                        ? "border-gray-400 dark:border-gray-500 dark:text-white bg-white dark:bg-gray-600 hover:bg-gray-200 dark:hover:bg-gray-500"
+                        : "border-gray-300 text-gray-500 bg-gray-100 dark:bg-gray-700 cursor-not-allowed"
+                    }`}
                   >
                     Cancelar
                   </button>
@@ -1291,7 +1316,12 @@ const AbonoForm: React.FC = () => {
                         ? guardarModificacion
                         : handleGuardarNuevoCliente
                     }
-                    className="flex-1 border-2 border-gray-400 dark:border-gray-500 dark:text-white bg-white dark:bg-gray-600 px-2 py-0.5 text-xs hover:bg-gray-200 transition-colors"
+                    disabled={!liquidacionActiva}
+                    className={`flex-1 border-2 px-2 py-0.5 text-xs transition-colors ${
+                      liquidacionActiva
+                        ? "border-gray-400 dark:border-gray-500 dark:text-white bg-white dark:bg-gray-600 hover:bg-gray-200 dark:hover:bg-gray-500"
+                        : "border-gray-300 text-gray-500 bg-gray-100 dark:bg-gray-700 cursor-not-allowed"
+                    }`}
                   >
                     Guardar
                   </button>
@@ -1301,24 +1331,36 @@ const AbonoForm: React.FC = () => {
                       setEditandoNuevoCliente(true);
                       setModoModificacion(false);
                     }}
-                    className="flex-1 border-2 border-gray-400 dark:border-gray-500 dark:text-white bg-white dark:bg-gray-600 px-2 py-0.5 text-xs hover:bg-gray-200 transition-colors"
+                    disabled={!liquidacionActiva}
+                    className={`flex-1 border-2 px-2 py-0.5 text-xs transition-colors ${
+                      liquidacionActiva
+                        ? "border-gray-400 dark:border-gray-500 dark:text-white bg-white dark:bg-gray-600 hover:bg-gray-200 dark:hover:bg-gray-500"
+                        : "border-gray-300 text-gray-500 bg-gray-100 dark:bg-gray-700 cursor-not-allowed"
+                    }`}
                   >
                     Nuevo Cliente
                   </button>
                   <button
                     type="button"
                     onClick={() => setMostrarInputsAbono(!mostrarInputsAbono)}
-                    className="flex-1 border-2 border-gray-400 dark:border-gray-500 dark:text-white
-                      bg-white dark:bg-gray-600 px-2 py-0.5 text-xs hover:bg-gray-200 transition-colors"
+                    disabled={!liquidacionActiva}
+                    className={`flex-1 border-2 px-2 py-0.5 text-xs transition-colors ${
+                      liquidacionActiva
+                        ? "border-gray-400 dark:border-gray-500 dark:text-white bg-white dark:bg-gray-600 hover:bg-gray-200 dark:hover:bg-gray-500"
+                        : "border-gray-300 text-gray-500 bg-gray-100 dark:bg-gray-700 cursor-not-allowed"
+                    }`}
                   >
                     Abono
                   </button>
                   <button
                     type="button"
                     onClick={iniciarModificacion}
-                    disabled={!clienteActual}
-                    className="flex-1 border-2 border-gray-400 dark:border-gray-500 dark:text-white
-                      bg-white dark:bg-gray-600 px-2 py-0.5 text-xs hover:bg-gray-200 transition-colors"
+                    disabled={!clienteActual || !liquidacionActiva}
+                    className={`flex-1 border-2 px-2 py-0.5 text-xs transition-colors ${
+                      liquidacionActiva
+                        ? "border-gray-400 dark:border-gray-500 dark:text-white bg-white dark:bg-gray-600 hover:bg-gray-200 dark:hover:bg-gray-500"
+                        : "border-gray-300 text-gray-500 bg-gray-100 dark:bg-gray-700 cursor-not-allowed"
+                    }`}
                   >
                     Modificar
                   </button>
@@ -1362,8 +1404,13 @@ const AbonoForm: React.FC = () => {
                   </button>
                   <button
                     type="button"
+                    onClick={() =>
+                      cobradorSeleccionado &&
+                      cargarUltimoCliente(cobradorSeleccionado)
+                    }
+                    disabled={!clienteActual || cargando}
                     className="flex-1 border-2 border-gray-400 dark:border-gray-500 dark:text-white
-                      bg-white dark:bg-gray-600 px-2 py-0.5 text-xs hover:bg-gray-200 transition-colors"
+                      bg-white dark:bg-gray-600 px-2 py-0.5 text-xs hover:bg-gray-200 transition-colors disabled:opacity-50"
                   >
                     Ultimo
                   </button>
@@ -1517,18 +1564,27 @@ const AbonoForm: React.FC = () => {
 
               <button
                 type="submit"
+                onClick={() => setLiquidacionActiva(true)}
                 className="border-2 border-gray-400 dark:border-gray-500 dark:text-white w-full bg-white
-            dark:bg-gray-600 px-2 py-1 text-xs font-bold mb-1"
+            dark:bg-gray-600 px-2 py-1 text-l font-bold mb-1"
               >
-                Verificar
+                Iniciar Liquidacion
               </button>
 
               <button
                 type="submit"
+                onClick={() => {
+                  const confirmacion = window.confirm(
+                    "¿Está seguro que desea finalizar la liquidación?"
+                  );
+                  if (confirmacion) {
+                    setLiquidacionActiva(false);
+                  }
+                }}
                 className="border-2 border-gray-400 dark:border-gray-500 dark:text-white w-full bg-white
             dark:bg-gray-600 px-2 py-1 text-xs font-bold"
               >
-                #Tarjeta
+                Finalizar Liquidacion
               </button>
             </div>
           </div>
