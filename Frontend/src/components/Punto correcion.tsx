@@ -1468,7 +1468,7 @@ const AbonoForm: React.FC = () => {
                 </label>
                 <input
                   type="number"
-                  value={totalAbonos}
+                  value={totalAbonos || ""}
                   readOnly
                   className="border border-gray-400 dark:border-gray-500 dark:text-white bg-white dark:bg-gray-600 px-1 py-0.5 text-xs col-span-2 text-left"
                 />
@@ -1480,8 +1480,11 @@ const AbonoForm: React.FC = () => {
                 </label>
                 <input
                   type="number"
-                  value={totalPrestamos}
-                  readOnly
+                  value={totalPrestamos || ""}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setTotalPrestamos(val === "" ? 0 : Number(val));
+                  }}
                   className="border border-gray-400 dark:border-gray-500 dark:text-white bg-white dark:bg-gray-600 px-1 py-0.5 text-xs col-span-2 text-left"
                 />
               </div>
@@ -1493,7 +1496,7 @@ const AbonoForm: React.FC = () => {
                 <div className="flex gap-0.5 col-span-">
                   <input
                     type="number"
-                    value={gastos}
+                    value={gastos || ""}
                     onChange={(e) => setGastos(Number(e.target.value) || 0)}
                     className="flex-1 border border-gray-400 dark:border-gray-500 dark:text-white bg-white dark:bg-gray-600 px-1 py-0.5 text-xs text-left"
                   />
@@ -1502,7 +1505,7 @@ const AbonoForm: React.FC = () => {
                   </label>
                   <input
                     type="number"
-                    value={otrGas}
+                    value={otrGas || ""}
                     onChange={(e) => setOtrGas(Number(e.target.value) || 0)}
                     className="border border-gray-400 dark:border-gray-500 dark:text-white bg-white dark:bg-gray-600 px-1 py-0.5 text-xs text-left w-20"
                   />
@@ -1515,7 +1518,7 @@ const AbonoForm: React.FC = () => {
                 </label>
                 <input
                   type="number"
-                  value={base}
+                  value={base || ""}
                   onChange={(e) => setBase(Number(e.target.value) || 0)}
                   className="border border-gray-400 dark:border-gray-500 dark:text-white bg-white dark:bg-gray-600 px-1 py-0.5 text-xs col-span-2 text-left"
                 />
@@ -1527,7 +1530,7 @@ const AbonoForm: React.FC = () => {
                 </label>
                 <input
                   type="number"
-                  value={descuento}
+                  value={descuento || ""}
                   onChange={(e) => setDescuento(Number(e.target.value) || 0)}
                   className="border border-gray-400 dark:border-gray-500 dark:text-white bg-white dark:bg-gray-600 px-1 py-0.5 text-xs col-span-2 text-left"
                 />
@@ -1539,7 +1542,7 @@ const AbonoForm: React.FC = () => {
                 </label>
                 <input
                   type="number"
-                  value={efectivoIngresado}
+                  value={efectivoIngresado || ""}
                   onChange={(e) =>
                     setEfectivoIngresado(Number(e.target.value) || 0)
                   }
@@ -1548,14 +1551,14 @@ const AbonoForm: React.FC = () => {
               </div>
 
               <div className="items-center flex gap-1">
-                <div className="bg-green-500 dark:bg-green-600 px-1 py-1 flex-1">
-                  &nbsp;
+                <div className="bg-green-500 dark:bg-green-600 px-1 py-1 flex-1 text-center text-xs font-bold text-black">
+                  {efectivoEsperado >= 0 ? `+${efectivoEsperado}` : efectivoEsperado}
                 </div>
                 <label className="text-xs font-bold text-red-600 dark:text-red-400 whitespace-nowrap">
                   Diferencia:
                 </label>
-                <div className="bg-yellow-300 dark:bg-yellow-500 px-1 py-1 flex-1">
-                  &nbsp;
+                <div className="bg-yellow-300 dark:bg-yellow-500 px-1 py-1 flex-1 text-center text-xs font-bold text-red-600">
+                  {diferencia >= 0 ? `+${diferencia}` : diferencia}
                 </div>
               </div>
             </div>
@@ -1634,6 +1637,31 @@ const AbonoForm: React.FC = () => {
                   );
                   if (confirmacion) {
                     setLiquidacionActiva(false);
+
+                    // 👇 cerrar inputs de abono
+                    setMostrarInputsAbono(false);
+
+                    // 👇 cancelar nuevo cliente
+                    setEditandoNuevoCliente(false);
+                    setMostrarListaClientes(false);
+                    setNuevoClienteData({
+                      cliCodigo: "",
+                      cliNombre: "",
+                      cliCalle: "",
+                      tarValor: "",
+                      tiempo: "",
+                      fp: "Diario",
+                      tarFecha: "",
+                    });
+
+                   
+                    setModoModificacion(false);
+                    setDatosModificacion({
+                      cliNombre: "",
+                      cliCalle: "",
+                      tiempo: "",
+                      fp: "Diario",
+                    });
                   }
                 }}
                 className="border-2 border-gray-400 dark:border-gray-500 dark:text-white w-full bg-white

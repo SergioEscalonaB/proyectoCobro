@@ -14,6 +14,7 @@ model Cobro {
   cobMoto      String?
   cobTelefono  String?
   clientes     Cliente[]
+  reportes     Reporte[]
 }
 
 model Cliente {
@@ -52,4 +53,26 @@ model Descripcion {
   fechaAct  DateTime
   tarCodigo String
   tarjeta   Tarjeta  @relation(fields: [tarCodigo], references: [tarCodigo], onDelete: Cascade)
+}
+
+model Reporte {
+  id            Int      @id @default(autoincrement())
+  fecha         DateTime @default(now())
+  cobCodigo     String
+  cobrador      Cobro    @relation(fields: [cobCodigo], references: [cobCodigo], onDelete: Restrict)
+
+  cobro         Float    // totalAbonos
+  prestamos     Float    // totalPrestamos
+  gastos        Float    // gastos
+  otrosGastos   Float    // otrGas
+  base          Float    // base
+  descuento     Float    // descuento
+  efectivo      Float    // efectivoIngresado
+  diferencia    Float    // efectivo - esperado
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([cobCodigo, fecha])
+  @@index([fecha])
 }

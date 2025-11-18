@@ -105,16 +105,19 @@ const AbonoForm: React.FC = () => {
   const [descuento, setDescuento] = useState<number>(0);
   const [efectivoIngresado, setEfectivoIngresado] = useState<number>(0);
   const [abonoProcesando, setAbonoProcesando] = useState(false);
+  const [guardado, setGuardado] = useState<boolean>(false); // Nuevo estado para guardado
+  const [guardandoReporte, setGuardandoReporte] = useState(false);
+  const [errorReporte, setErrorReporte] = useState<string | null>(null);
 
-  // ✅ Valores acumulados
-  const cobro = totalAbonos; // ✅ total de abonos = cobro
-  const prestamo = totalPrestamos; // ✅ total de nuevos préstamos
+  // Valores acumulados
+  const cobro = totalAbonos; // total de abonos = cobro
+  const prestamo = totalPrestamos; // total de nuevos préstamos
 
-  // ✅ Cálculo del efectivo esperado
+  // Cálculo del efectivo esperado
   const efectivoEsperado =
     cobro - prestamo - gastos - otrGas + base - descuento;
 
-  // ✅ Diferencia: lo que se ingresó vs lo que debería haber
+  // Diferencia: lo que se ingresó vs lo que debería haber
   const diferencia = efectivoIngresado - efectivoEsperado;
 
   const cargarClientesExistentes = async () => {
@@ -671,6 +674,88 @@ const AbonoForm: React.FC = () => {
     setMostrarListaClientes(false);
     // No se reinicia nuevoClienteData porque no se usa en modo modificación
   };
+
+  const handleFinalizarLiquidacion = async () => {
+    if (guardandoReporte) return;
+    if (!liquidacionActiva) {
+      alert("No hay una liquidación activa.");
+      return;
+    }
+
+    const confirmacion = window.confirm(
+      "¿Está seguro que desea finalizar la liquidación?"
+    );
+    if (!confirmacion) return;
+
+    // Construir payload compatible con tu modelo Prisma (Reporte)
+    const payload = {
+      // campos del modelo: cobCodigo, cobro, prestamos, gastos, otrosGastos, base, descuento, efectivo, diferencia, fecha
+      cobCodigo: cobradorSeleccionado || "N/A",
+      cobro: Number(totalAbonos || 0),
+      prestamos: Number(totalPrestamos || 0),
+      gastos: Number(gastos || 0),
+      otrosGastos: Number(otrGas || 0),
+      base: Number(base || 0),
+      descuento: Number(descuento || 0),
+      efectivo: Number(efectivoIngresado || 0),
+      diferencia: Number(diferencia || 0),
+      // envía fecha en ISO para que Prisma la convierta a DateTime
+      fecha: new Date().toISOString(),
+    };
+
+    try {
+      setGuardandoReporte(true);
+      setErrorReporte(null);
+
+      const res = await fetch("http://localhost:3000/reporte", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        // intenta leer mensaje de error del backend
+        const data = await res.json().catch(() => ({}));
+        const msg = data.message || `Error ${res.status}: ${res.statusText}`;
+        throw new Error(msg);
+      }
+
+      const creado = await res.json();
+      console.log("📦 Reporte guardado en BD:", creado);
+
+      // Estado UI: marcado como guardado y reset de la liquidación
+      setGuardado(true);
+      setLiquidacionActiva(false);
+      setMostrarInputsAbono(false);
+      setEditandoNuevoCliente(false);
+      setMostrarListaClientes(false);
+      setNuevoClienteData({
+        cliCodigo: "",
+        cliNombre: "",
+        cliCalle: "",
+        tarValor: "",
+        tiempo: "",
+        fp: "Diario",
+        tarFecha: "",
+      });
+      setModoModificacion(false);
+      setDatosModificacion({
+        cliNombre: "",
+        cliCalle: "",
+        tiempo: "",
+        fp: "Diario",
+      });
+
+      alert("✅ Liquidación finalizada y reporte guardado correctamente.");
+    } catch (err: any) {
+      console.error("Error guardando reporte:", err);
+      setErrorReporte(err.message || "Error al guardar el reporte");
+      alert(`❌ ${err.message || "Error al guardar el reporte"}`);
+    } finally {
+      setGuardandoReporte(false);
+    }
+  };
+
   return (
     <div className="bg-gray-200 dark:bg-gray-800 h-screen p-4 font-sans overflow-hidden">
       <div className="mx-auto h-full max-w-[100vw] flex flex-col">
@@ -1468,7 +1553,7 @@ const AbonoForm: React.FC = () => {
                 </label>
                 <input
                   type="number"
-                  value={totalAbonos}
+                  value={totalAbonos || ""}
                   readOnly
                   className="border border-gray-400 dark:border-gray-500 dark:text-white bg-white dark:bg-gray-600 px-1 py-0.5 text-xs col-span-2 text-left"
                 />
@@ -1480,8 +1565,11 @@ const AbonoForm: React.FC = () => {
                 </label>
                 <input
                   type="number"
-                  value={totalPrestamos}
-                  readOnly
+                  value={totalPrestamos || ""}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setTotalPrestamos(val === "" ? 0 : Number(val));
+                  }}
                   className="border border-gray-400 dark:border-gray-500 dark:text-white bg-white dark:bg-gray-600 px-1 py-0.5 text-xs col-span-2 text-left"
                 />
               </div>
@@ -1493,7 +1581,7 @@ const AbonoForm: React.FC = () => {
                 <div className="flex gap-0.5 col-span-">
                   <input
                     type="number"
-                    value={gastos}
+                    value={gastos || ""}
                     onChange={(e) => setGastos(Number(e.target.value) || 0)}
                     className="flex-1 border border-gray-400 dark:border-gray-500 dark:text-white bg-white dark:bg-gray-600 px-1 py-0.5 text-xs text-left"
                   />
@@ -1502,7 +1590,7 @@ const AbonoForm: React.FC = () => {
                   </label>
                   <input
                     type="number"
-                    value={otrGas}
+                    value={otrGas || ""}
                     onChange={(e) => setOtrGas(Number(e.target.value) || 0)}
                     className="border border-gray-400 dark:border-gray-500 dark:text-white bg-white dark:bg-gray-600 px-1 py-0.5 text-xs text-left w-20"
                   />
@@ -1515,7 +1603,7 @@ const AbonoForm: React.FC = () => {
                 </label>
                 <input
                   type="number"
-                  value={base}
+                  value={base || ""}
                   onChange={(e) => setBase(Number(e.target.value) || 0)}
                   className="border border-gray-400 dark:border-gray-500 dark:text-white bg-white dark:bg-gray-600 px-1 py-0.5 text-xs col-span-2 text-left"
                 />
@@ -1527,7 +1615,7 @@ const AbonoForm: React.FC = () => {
                 </label>
                 <input
                   type="number"
-                  value={descuento}
+                  value={descuento || ""}
                   onChange={(e) => setDescuento(Number(e.target.value) || 0)}
                   className="border border-gray-400 dark:border-gray-500 dark:text-white bg-white dark:bg-gray-600 px-1 py-0.5 text-xs col-span-2 text-left"
                 />
@@ -1539,7 +1627,7 @@ const AbonoForm: React.FC = () => {
                 </label>
                 <input
                   type="number"
-                  value={efectivoIngresado}
+                  value={efectivoIngresado || ""}
                   onChange={(e) =>
                     setEfectivoIngresado(Number(e.target.value) || 0)
                   }
@@ -1548,14 +1636,16 @@ const AbonoForm: React.FC = () => {
               </div>
 
               <div className="items-center flex gap-1">
-                <div className="bg-green-500 dark:bg-green-600 px-1 py-1 flex-1">
-                  &nbsp;
+                <div className="bg-green-500 dark:bg-green-600 px-1 py-1 flex-1 text-center text-xs font-bold text-black">
+                  {efectivoEsperado >= 0
+                    ? `+${efectivoEsperado}`
+                    : efectivoEsperado}
                 </div>
                 <label className="text-xs font-bold text-red-600 dark:text-red-400 whitespace-nowrap">
                   Diferencia:
                 </label>
-                <div className="bg-yellow-300 dark:bg-yellow-500 px-1 py-1 flex-1">
-                  &nbsp;
+                <div className="bg-yellow-300 dark:bg-yellow-500 px-1 py-1 flex-1 text-center text-xs font-bold text-red-600">
+                  {diferencia >= 0 ? `+${diferencia}` : diferencia}
                 </div>
               </div>
             </div>
@@ -1564,8 +1654,14 @@ const AbonoForm: React.FC = () => {
               Fecha
             </div>
 
-            <div className="bg-red-600 dark:bg-red-700 text-white text-center py-1 font-bold text-xs rounded shadow">
-              SIN GUARDAR
+            <div
+              className={`text-white text-center py-1 font-bold text-xs rounded shadow transition-colors ${
+                guardado
+                  ? "bg-green-600 dark:bg-green-700"
+                  : "bg-red-600 dark:bg-red-700"
+              }`}
+            >
+              {guardado ? "GUARDADO" : "SIN GUARDAR"}
             </div>
 
             <div className="flex-1">
@@ -1615,6 +1711,7 @@ const AbonoForm: React.FC = () => {
                   setBase(0);
                   setDescuento(0);
                   setEfectivoIngresado(0);
+                  setGuardado(false);
                 }}
                 disabled={liquidacionActiva}
                 className={`border-2 w-full px-2 py-1 text-xs font-bold mb-1 ${
@@ -1628,19 +1725,18 @@ const AbonoForm: React.FC = () => {
 
               <button
                 type="submit"
-                onClick={() => {
-                  const confirmacion = window.confirm(
-                    "¿Está seguro que desea finalizar la liquidación?"
-                  );
-                  if (confirmacion) {
-                    setLiquidacionActiva(false);
-                  }
-                }}
-                className="border-2 border-gray-400 dark:border-gray-500 dark:text-white w-full bg-white
-            dark:bg-gray-600 px-2 py-1 text-xs font-bold"
+                onClick={handleFinalizarLiquidacion}
+                disabled={guardandoReporte}
+                className="border-2 border-gray-400 dark:border-gray-500 dark:text-white w-full bg-white dark:bg-gray-600 px-2 py-1 text-xs font-bold"
               >
-                Finalizar Liquidacion
+                {guardandoReporte ? "Guardando..." : "Finalizar Liquidacion"}
               </button>
+
+              {errorReporte && (
+                <div className="text-red-600 text-sm mt-2">
+                  Error al guardar el reporte: {errorReporte}
+                </div>
+              )}
             </div>
           </div>
         </div>
