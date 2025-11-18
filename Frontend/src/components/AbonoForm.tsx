@@ -50,28 +50,22 @@ const getDiasPorFrecuencia = (fp: string): number => {
 const AbonoForm: React.FC = () => {
   // Estados
 
-  const [cobradores, setCobradores] = useState<Cobrador[]>([]);
-  const [cobradorSeleccionado, setCobradorSeleccionado] = useState<string>("");
-  const [clienteActual, setClienteActual] = useState<Cliente | null>(null);
-  const [descripcionAbonos, setDescripcionAbonos] = useState<Descripcion[]>([]);
-  const [cargando, setCargando] = useState<boolean>(false);
-  const [error, setError] = useState<string>("");
-  const [mostrarInputsAbono, setMostrarInputsAbono] = useState(false);
-  const [montoAbono, setMontoAbono] = useState<number | "">("");
-
-  const [saldoEscrito, setSaldoEscrito] = useState<number | "">("");
-  const [abonoVisitado, setAbonoVisitado] = useState(false);
-  const abonoInputRef = useRef<HTMLInputElement>(null);
-  const saldoInputRef = useRef<HTMLInputElement>(null);
-
-  const [posicionCliente, setPosicionCliente] = useState<number | null>(null);
-  const [totalClientes, setTotalClientes] = useState<number>(0);
-
-  const [modoNuevoCliente, setModoNuevoCliente] = useState<"antes" | "despues">(
-    "antes"
-  );
+  const [cobradores, setCobradores] = useState<Cobrador[]>([]); // Lista de cobradores
+  const [cobradorSeleccionado, setCobradorSeleccionado] = useState<string>(""); // Código del cobrador seleccionado
+  const [clienteActual, setClienteActual] = useState<Cliente | null>(null); // Cliente actual
+  const [descripcionAbonos, setDescripcionAbonos] = useState<Descripcion[]>([]); 
+  const [cargando, setCargando] = useState<boolean>(false); // Estado de carga
+  const [error, setError] = useState<string>(""); // Mensaje de error
+  const [mostrarInputsAbono, setMostrarInputsAbono] = useState(false); // Mostrar inputs de abono
+  const [montoAbono, setMontoAbono] = useState<number | "">(""); // Monto del abono
+  const [saldoEscrito, setSaldoEscrito] = useState<number | "">(""); // Saldo escrito
+  const [abonoVisitado, setAbonoVisitado] = useState(false); // Marca si el usuario entró al flujo de abono
+  const abonoInputRef = useRef<HTMLInputElement>(null); // Ref para el input de abono
+  const saldoInputRef = useRef<HTMLInputElement>(null); // Ref para el input de saldo 
+  const [posicionCliente, setPosicionCliente] = useState<number | null>(null); // Posición del cliente actual dentro de la lista
+  const [totalClientes, setTotalClientes] = useState<number>(0); // Total de clientes del cobrador
+  const [modoNuevoCliente, setModoNuevoCliente] = useState<"antes" | "despues">("antes"); // Modo de nuevo cliente
   const [editandoNuevoCliente, setEditandoNuevoCliente] = useState(false);
-  // Campos editables para el nuevo cliente
   const [nuevoClienteData, setNuevoClienteData] = useState({
     cliCodigo: "",
     cliNombre: "",
@@ -80,21 +74,19 @@ const AbonoForm: React.FC = () => {
     tiempo: "",
     fp: "Diario", // valor por defecto
     tarFecha: "",
-  });
+  }); // Datos para el nuevo cliente
 
-  const [modoModificacion, setModoModificacion] = useState(false);
+  const [modoModificacion, setModoModificacion] = useState(false); // Modo de modificación
   const [datosModificacion, setDatosModificacion] = useState({
     cliNombre: "",
     cliCalle: "",
     tiempo: "",
     fp: "Diario",
-  });
+  }); // Datos para modificación  
 
-  const [clientesExistentes, setClientesExistentes] = useState<Cliente[]>([]);
-  const [mostrarListaClientes, setMostrarListaClientes] = useState(false);
-
-  // Nuevo estado para liquidación activa
-  const [liquidacionActiva, setLiquidacionActiva] = useState(false);
+  const [clientesExistentes, setClientesExistentes] = useState<Cliente[]>([]); // Lista de clientes existentes
+  const [mostrarListaClientes, setMostrarListaClientes] = useState(false); // Mostrar lista de clientes
+  const [liquidacionActiva, setLiquidacionActiva] = useState(false); // Estado de liquidación activa
 
   // Estados para cálculo de liquidación
   const [totalAbonos, setTotalAbonos] = useState<number>(0);
@@ -105,24 +97,21 @@ const AbonoForm: React.FC = () => {
   const [descuento, setDescuento] = useState<number>(0);
   const [efectivoIngresado, setEfectivoIngresado] = useState<number>(0);
   const [abonoProcesando, setAbonoProcesando] = useState(false);
-  const [guardado, setGuardado] = useState<boolean>(false); // Nuevo estado para guardado
+  const [guardado, setGuardado] = useState<boolean>(false);
   const [guardandoReporte, setGuardandoReporte] = useState(false);
   const [errorReporte, setErrorReporte] = useState<string | null>(null);
 
-  const [estadoCargado, setEstadoCargado] = useState(false);
+  const [estadoCargado, setEstadoCargado] = useState(false); // Marca si el estado ha sido cargado desde localStorage
+  const [itenActual, setItenActual] = useState<number | null>(null); // Iten del cliente actual (para restaurar posición)
+  const [tarjetasCanceladas, setTarjetasCanceladas] = useState<Array<{ nombre: string; ultimoAbono: number;diasVencidos: number;}>>([]); // Tarjetas canceladas durante la liquidación
+  const [prestamosIngresados, setPrestamosIngresados] = useState<Array<{nombre: string;valorPrestamo: number;}>>([]); // Préstamos ingresados durante la liquidación
 
-  const [itenActual, setItenActual] = useState<number | null>(null);
 
-  // Valores acumulados
   const cobro = totalAbonos; // total de abonos = cobro
   const prestamo = totalPrestamos; // total de nuevos préstamos
 
-  // Cálculo del efectivo esperado
-  const efectivoEsperado =
-    cobro - prestamo - gastos - otrGas + base - descuento;
-
-  // Diferencia: lo que se ingresó vs lo que debería haber
-  const diferencia = efectivoIngresado - efectivoEsperado;
+  const efectivoEsperado = cobro - prestamo - gastos - otrGas + base - descuento; // Efectivo que debería haber
+  const diferencia = efectivoIngresado - efectivoEsperado; // Diferencia entre efectivo ingresado y esperado
 
   const cargarClientesExistentes = async () => {
     try {
@@ -138,7 +127,7 @@ const AbonoForm: React.FC = () => {
       }
 
       const data = await response.json();
-      console.log("Datos recibidos:", data); // 👈 Esto te mostrará qué está llegando
+      console.log("Datos recibidos:", data);
 
       setClientesExistentes(data);
     } catch (err: any) {
@@ -149,7 +138,7 @@ const AbonoForm: React.FC = () => {
 
   useEffect(() => {
     cargarCobradores();
-    cargarClientesExistentes(); // 🔥 Cargar clientes existentes
+    cargarClientesExistentes(); //Cargar clientes existentes
   }, []);
 
   // Cargar primer cliente cuando se selecciona un cobrador
@@ -213,6 +202,7 @@ const AbonoForm: React.FC = () => {
     }
   };
 
+  // Cargar el último cliente para un cobrador dado
   const cargarUltimoCliente = async (cobCodigo: string) => {
     try {
       setCargando(true);
@@ -264,6 +254,7 @@ const AbonoForm: React.FC = () => {
     }
   };
 
+  // Formatear fecha ISO a dd-mm-aa
   const formatFecha = (fechaISO: string) => {
     if (!fechaISO) return "";
     const fecha = new Date(fechaISO);
@@ -273,6 +264,7 @@ const AbonoForm: React.FC = () => {
     return `${dia}-${mes}-${año}`;
   };
 
+  // Guardar nuevo cliente
   const handleGuardarNuevoCliente = async () => {
     if (!cobradorSeleccionado) {
       alert("Seleccione un cobrador primero");
@@ -297,7 +289,7 @@ const AbonoForm: React.FC = () => {
 
     const diasPorCuota = getDiasPorFrecuencia(fp);
     const numCuotas = Math.ceil(plazo / diasPorCuota);
-    const cuota = Math.ceil(valor / numCuotas); // 👈 redondeo arriba (mejor cobertura)
+    const cuota = Math.ceil(valor / numCuotas); // redondeo arriba para que sea entero
 
     // Convertir fecha corta a ISO
     const fechaISO = convertirFechaCortaAISO(tarFecha);
@@ -322,7 +314,7 @@ const AbonoForm: React.FC = () => {
       setCargando(true);
       setError("");
 
-      // Construir URL: con o sin referencia (solo si hay cliente actual con tarjeta activa)
+      // Crear cliente
       let url = "http://localhost:3000/clientes";
       if (clienteActual?.tarjetaActiva?.iten) {
         const queryParams = new URLSearchParams({
@@ -343,9 +335,20 @@ const AbonoForm: React.FC = () => {
         throw new Error(errorData.message || "Error al crear el cliente");
       }
 
-      // ✅ ✅ ✅ SOLO ACÁ: acumular préstamo (el cliente y tarjeta ya existen)
+      // acumular préstamo para liquidación
       if (liquidacionActiva) {
         setTotalPrestamos((prev) => prev + valor);
+      }
+
+      // Registrar en "Préstamos Ingresados"
+      if (liquidacionActiva) {
+        setPrestamosIngresados((prev) => [
+          ...prev,
+          {
+            nombre: cliNombre,
+            valorPrestamo: valor,
+          },
+        ]);
       }
 
       alert("✅ Cliente creado exitosamente");
@@ -368,7 +371,7 @@ const AbonoForm: React.FC = () => {
           setClienteActual(clienteCreado);
           setError("");
         } else {
-          // Si no se encuentra, volver al primero (fallback seguro)
+          // Si no se encuentra, volver al primero
           await cargarPrimerCliente(cobradorSeleccionado);
         }
       } catch (err) {
@@ -384,6 +387,7 @@ const AbonoForm: React.FC = () => {
     }
   };
 
+  // Convertir fecha dd-mm-aa a ISO yyyy-mm-dd
   const convertirFechaCortaAISO = (fechaCorta: string): string | null => {
     // Ej: "15-04-25" → "2025-04-15"
     const partes = fechaCorta.split("-");
@@ -442,6 +446,7 @@ const AbonoForm: React.FC = () => {
     }
   };
 
+  // Calcular días vencidos
   const calcularDiasVencidos = (fechaInicio: string, plazo: number) => {
     if (!fechaInicio || !plazo) return 0;
 
@@ -456,14 +461,17 @@ const AbonoForm: React.FC = () => {
     return dias > 0 ? dias : 0; // Si aún no vence → 0 días vencidos
   };
 
+  // Calcular saldo actual de la tarjeta
   const saldoActual =
     descripcionAbonos.length > 0
       ? descripcionAbonos[descripcionAbonos.length - 1].desResta
       : clienteActual?.tarjetaActiva?.saldoActual || 0;
 
+  // Calcular saldo después del abono
   const saldoCalculado =
     typeof montoAbono === "number" ? saldoActual - montoAbono : saldoActual;
 
+  // Procesar abono
   const procesarAbono = async () => {
     if (abonoProcesando) return;
     setAbonoProcesando(true);
@@ -493,6 +501,7 @@ const AbonoForm: React.FC = () => {
         return;
       }
 
+      // Construir payload para el abono
       const payload = {
         tarCodigo: clienteActual.tarjetaActiva.tarCodigo,
         desAbono: abono,
@@ -514,6 +523,22 @@ const AbonoForm: React.FC = () => {
         setTotalAbonos((prev) => prev + abono);
       }
 
+      // Registrar tarjeta cancelada
+      if (liquidacionActiva && saldo <= 0 && clienteActual) {
+        const diasVencidos = calcularDiasVencidos(
+          clienteActual.tarjetaActiva.tarFecha,
+          clienteActual.tarjetaActiva.tiempo
+        );
+        setTarjetasCanceladas((prev) => [
+          ...prev,
+          {
+            nombre: clienteActual.cliNombre,
+            ultimoAbono: abono,
+            diasVencidos: diasVencidos,
+          },
+        ]);
+      }
+
       await cargarDescripcionAbonos(clienteActual.cliCodigo);
       await navegarCliente("siguiente");
 
@@ -524,26 +549,28 @@ const AbonoForm: React.FC = () => {
       console.error("Error:", error);
       alert(`❌ ${error.message || "Error al guardar el abono"}`);
     } finally {
-      // 💯 IMPORTANTE: liberar el candado SIEMPRE
+      // IMPORTANTE liberar el candado SIEMPRE
       setAbonoProcesando(false);
     }
   };
 
+  // Manejo de teclas Enter
   const handleAbonoKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      setAbonoVisitado(true); // ✅ Marca que el usuario entró al flujo
+      setAbonoVisitado(true); //Marca que el usuario entró al flujo
       saldoInputRef.current?.focus();
     }
   };
 
+  // Manejo de teclas Enter
   const handleSaldoKeyDown = async (
     e: React.KeyboardEvent<HTMLInputElement>
   ) => {
     if (e.key === "Enter") {
       e.preventDefault();
 
-      // ✅ Lógica del "doble Enter": ambos campos vacíos
+      // Lógica del doble Enter: ambos campos vacíos
       if (abonoVisitado && montoAbono === "" && saldoEscrito === "") {
         // Limpiar estado y avanzar
         setAbonoVisitado(false);
@@ -600,6 +627,7 @@ const AbonoForm: React.FC = () => {
     }
   };
 
+  // Cargar posición del cliente en la lista de clientes activos
   useEffect(() => {
     if (clienteActual && cobradorSeleccionado) {
       cargarPosicionCliente(cobradorSeleccionado, clienteActual.cliCodigo);
@@ -609,6 +637,7 @@ const AbonoForm: React.FC = () => {
     }
   }, [clienteActual, cobradorSeleccionado]);
 
+  // Iniciar modificación de cliente
   const iniciarModificacion = () => {
     if (!clienteActual?.tarjetaActiva) {
       alert("No hay cliente activo para modificar");
@@ -623,6 +652,7 @@ const AbonoForm: React.FC = () => {
     });
   };
 
+  // Guardar modificaciones de cliente
   const guardarModificacion = async () => {
     const { cliNombre, cliCalle, tiempo, fp } = datosModificacion;
     const plazo = Number(tiempo);
@@ -655,7 +685,7 @@ const AbonoForm: React.FC = () => {
 
       if (!response.ok) throw new Error("Error al actualizar el cliente");
 
-      alert("✅ Cliente actualizado correctamente");
+      alert("Cliente actualizado correctamente");
       // Recargar cliente
       const res = await fetch(
         `http://localhost:3000/clientes/${clienteActual!.cliCodigo}`
@@ -679,6 +709,7 @@ const AbonoForm: React.FC = () => {
     // No se reinicia nuevoClienteData porque no se usa en modo modificación
   };
 
+  // Finalizar liquidación boton
   const handleFinalizarLiquidacion = async () => {
     if (guardandoReporte) return;
     if (!liquidacionActiva) {
@@ -763,7 +794,7 @@ const AbonoForm: React.FC = () => {
       }
 
       const creado = await res.json();
-      console.log("📦 Reporte guardado:", creado);
+      console.log("Reporte guardado:", creado);
 
       // Reset igual que antes
       setGuardado(true);
@@ -814,7 +845,6 @@ const AbonoForm: React.FC = () => {
       liquidacionActiva,
       cobradorSeleccionado,
       itenActual,
-
       totalAbonos,
       totalPrestamos,
       gastos,
@@ -823,9 +853,10 @@ const AbonoForm: React.FC = () => {
       base,
       efectivoIngresado,
       diferencia,
-
       montoAbono,
       saldoEscrito,
+      tarjetasCanceladas,
+      prestamosIngresados,
     };
 
     localStorage.setItem("estado_liquidacion", JSON.stringify(estado));
@@ -844,52 +875,62 @@ const AbonoForm: React.FC = () => {
     diferencia,
     montoAbono,
     saldoEscrito,
+    tarjetasCanceladas,
+    prestamosIngresados,
   ]);
 
   // Restaurar
   useEffect(() => {
-  const data = localStorage.getItem("estado_liquidacion");
-  if (!data) {
-    setEstadoCargado(true);
-    return;
-  }
-
-  try {
-    const estado = JSON.parse(data);
-
-    if (estado.liquidacionActiva) {
-      setLiquidacionActiva(true);
-
-      setCobradorSeleccionado(estado.cobradorSeleccionado || "");
-
-      setTotalAbonos(estado.totalAbonos || 0);
-      setTotalPrestamos(estado.totalPrestamos || 0);
-      setGastos(estado.gastos || 0);
-      setOtrGas(estado.otrGas || 0);
-      setDescuento(estado.descuento || 0);
-      setBase(estado.base || 0);
-      setEfectivoIngresado(estado.efectivoIngresado || 0);
-
-      setMontoAbono(estado.montoAbono || "");
-      setSaldoEscrito(estado.saldoEscrito || "");
-
-      if (estado.itenActual && estado.cobradorSeleccionado) {
-        // 🔥 Recargar cliente exacto desde backend
-        fetch(`http://localhost:3000/clientes/cobrador/${estado.cobradorSeleccionado}/navegar?iten=${estado.itenActual}&direccion=actual`)
-          .then(res => res.json())
-          .then(cli => {
-            setClienteActual(cli);
-          })
-          .catch(err => console.error("Error restaurando cliente:", err));
-      }
+    const data = localStorage.getItem("estado_liquidacion");
+    if (!data) {
+      setEstadoCargado(true);
+      return;
     }
-  } catch (err) {
-    console.error("Error restaurando liquidación:", err);
-  }
 
-  setEstadoCargado(true);
-}, []);
+    try {
+      const estado = JSON.parse(data);
 
+      if (estado.liquidacionActiva) {
+        setLiquidacionActiva(true);
+
+        setCobradorSeleccionado(estado.cobradorSeleccionado || "");
+
+        setTotalAbonos(estado.totalAbonos || 0);
+        setTotalPrestamos(estado.totalPrestamos || 0);
+        setGastos(estado.gastos || 0);
+        setOtrGas(estado.otrGas || 0);
+        setDescuento(estado.descuento || 0);
+        setBase(estado.base || 0);
+        setEfectivoIngresado(estado.efectivoIngresado || 0);
+        setMontoAbono(estado.montoAbono || "");
+        setSaldoEscrito(estado.saldoEscrito || "");
+        setTarjetasCanceladas(estado.tarjetasCanceladas || []);
+        setPrestamosIngresados(estado.prestamosIngresados || []);
+
+        if (estado.itenActual && estado.cobradorSeleccionado) {
+          //Recargar cliente exacto desde backend
+          fetch(
+            `http://localhost:3000/clientes/cobrador/${estado.cobradorSeleccionado}/navegar?iten=${estado.itenActual}&direccion=actual`
+          )
+            .then((res) => res.json())
+            .then((cli) => {
+              setClienteActual(cli);
+            })
+            .catch((err) => console.error("Error restaurando cliente:", err));
+        }
+      }
+    } catch (err) {
+      console.error("Error restaurando liquidación:", err);
+    }
+
+    setEstadoCargado(true);
+  }, []);
+
+  const fechaHoy = new Date().toLocaleDateString("es-CO", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
 
   return (
     <div className="bg-gray-200 dark:bg-gray-800 h-screen p-4 font-sans overflow-hidden">
@@ -981,7 +1022,7 @@ const AbonoForm: React.FC = () => {
                 </div>
                 {/* Nombre Del Cliente */}
                 <div className="col-span-3 flex flex-col">
-                  {/* 🔹 Label + Checkbox (solo si editandoNuevoCliente) */}
+                  {/* Label + Checkbox (solo si editandoNuevoCliente) */}
                   <div className="flex items-center justify-left mb-1">
                     <label className="font-bold text-xs text-gray-900 dark:text-white">
                       Nombre Del Cliente
@@ -1020,7 +1061,7 @@ const AbonoForm: React.FC = () => {
                     )}
                   </div>
 
-                  {/* 🔹 Input o Select */}
+                  {/* Input o Select  */}
                   {editandoNuevoCliente ? (
                     <div className="flex flex-col gap-1">
                       {!mostrarListaClientes && (
@@ -1388,7 +1429,7 @@ const AbonoForm: React.FC = () => {
               <div className="mb-2 flex-1 flex gap-2 overflow-hidden">
                 {/* Panel de checkboxes (izquierda) */}
                 <div className="bg-gray-100 dark:bg-gray-600 border-2 border-gray-400 dark:border-gray-500 p-3 w-64 flex flex-col justify-center">
-                  <div className="mb-0.5">
+                  {/*<div className="mb-0.5">
                     <label className="items-center text-xs text-gray-900 flex dark:text-white">
                       <input type="checkbox" className="mr-1" />
                       <span className="font-bold">
@@ -1786,7 +1827,7 @@ const AbonoForm: React.FC = () => {
             </div>
 
             <div className="bg-blue-700 dark:bg-blue-800 text-white text-center px-1 py-1 text-xs font-bold dark:text-white whitespace-nowrap">
-              Fecha
+              {fechaHoy}
             </div>
 
             <div
@@ -1799,18 +1840,62 @@ const AbonoForm: React.FC = () => {
               {guardado ? "GUARDADO" : "SIN GUARDAR"}
             </div>
 
-            <div className="flex-1">
+            <div className="flex-1 flex flex-col overflow-hidden">
               <div className="bg-gray-800 dark:bg-gray-900 text-white text-center py-1 font-bold text-xs">
                 TARJETAS CANCELADAS
               </div>
-              <div className="bg-yellow-500 dark:bg-yellow-600 h-full"></div>
+              <div className="bg-yellow-50 dark:bg-yellow-900 text-xs p-1 overflow-y-auto flex-1">
+                {tarjetasCanceladas.length === 0 ? (
+                  <p className="text-gray-500 text-center italic">Ninguna</p>
+                ) : (
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr>
+                        <th className="text-left">Nombre</th>
+                        <th className="text-left">Últ. Abono</th>
+                        <th className="text-left  ">Días Venc.</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tarjetasCanceladas.map((t, i) => (
+                        <tr key={i}>
+                          <td className="py-0.5">{t.nombre}</td>
+                          <td className="text-left">{t.ultimoAbono}</td>
+                          <td className="text-left">{t.diasVencidos}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
             </div>
 
-            <div className="flex-1">
+            <div className="flex-1 flex flex-col overflow-hidden">
               <div className="bg-gray-800 dark:bg-gray-900 text-white text-center py-1 font-bold text-xs">
                 PRESTAMOS INGRESADOS
               </div>
-              <div className="bg-cyan-500 dark:bg-cyan-600 h-full"></div>
+              <div className="bg-cyan-50 dark:bg-cyan-900 text-xs p-1 overflow-y-auto flex-1">
+                {prestamosIngresados.length === 0 ? (
+                  <p className="text-gray-500 text-center italic">Ninguno</p>
+                ) : (
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr>
+                        <th className="text-left">Nombre</th>
+                        <th className="text-left">Valor</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {prestamosIngresados.map((p, i) => (
+                        <tr key={i}>
+                          <td className="py-0.5">{p.nombre}</td>
+                          <td className="text-left">{p.valorPrestamo}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
             </div>
 
             <div className="bg-gray-100 dark:bg-gray-700 p-2 rounded shadow">
