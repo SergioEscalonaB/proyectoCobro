@@ -109,6 +109,10 @@ const AbonoForm: React.FC = () => {
   const [guardandoReporte, setGuardandoReporte] = useState(false);
   const [errorReporte, setErrorReporte] = useState<string | null>(null);
 
+  const [estadoCargado, setEstadoCargado] = useState(false);
+
+  const [itenActual, setItenActual] = useState<number | null>(null);
+
   // Valores acumulados
   const cobro = totalAbonos; // total de abonos = cobro
   const prestamo = totalPrestamos; // total de nuevos préstamos
@@ -682,14 +686,54 @@ const AbonoForm: React.FC = () => {
       return;
     }
 
-    const confirmacion = window.confirm(
+    // 1️⃣ Primera pregunta: finalizar liquidación
+    const confirmarFinalizar = window.confirm(
       "¿Está seguro que desea finalizar la liquidación?"
     );
-    if (!confirmacion) return;
 
-    // Construir payload compatible con tu modelo Prisma (Reporte)
+    if (!confirmarFinalizar) {
+      return; // cancela todo
+    }
+
+    // 2️⃣ Segunda pregunta: guardar en la base de datos
+    const deseaGuardar = window.confirm(
+      "¿Desea guardar esta liquidación en la base de datos?"
+    );
+
+    // --- SI NO QUIERE GUARDAR ---
+    if (!deseaGuardar) {
+      // Cierra liquidación sin guardar
+      setGuardado(true);
+      setLiquidacionActiva(false);
+      setMostrarInputsAbono(false);
+      setEditandoNuevoCliente(false);
+      setMostrarListaClientes(false);
+      setModoModificacion(false);
+
+      setNuevoClienteData({
+        cliCodigo: "",
+        cliNombre: "",
+        cliCalle: "",
+        tarValor: "",
+        tiempo: "",
+        fp: "Diario",
+        tarFecha: "",
+      });
+
+      setDatosModificacion({
+        cliNombre: "",
+        cliCalle: "",
+        tiempo: "",
+        fp: "Diario",
+      });
+
+      alert("Liquidación finalizada sin guardar.");
+      localStorage.removeItem("estado_liquidacion");
+      return;
+    }
+
+    // --- SI QUIERE GUARDAR ---
     const payload = {
-      // campos del modelo: cobCodigo, cobro, prestamos, gastos, otrosGastos, base, descuento, efectivo, diferencia, fecha
       cobCodigo: cobradorSeleccionado || "N/A",
       cobro: Number(totalAbonos || 0),
       prestamos: Number(totalPrestamos || 0),
@@ -699,7 +743,6 @@ const AbonoForm: React.FC = () => {
       descuento: Number(descuento || 0),
       efectivo: Number(efectivoIngresado || 0),
       diferencia: Number(diferencia || 0),
-      // envía fecha en ISO para que Prisma la convierta a DateTime
       fecha: new Date().toISOString(),
     };
 
@@ -714,21 +757,22 @@ const AbonoForm: React.FC = () => {
       });
 
       if (!res.ok) {
-        // intenta leer mensaje de error del backend
         const data = await res.json().catch(() => ({}));
         const msg = data.message || `Error ${res.status}: ${res.statusText}`;
         throw new Error(msg);
       }
 
       const creado = await res.json();
-      console.log("📦 Reporte guardado en BD:", creado);
+      console.log("📦 Reporte guardado:", creado);
 
-      // Estado UI: marcado como guardado y reset de la liquidación
+      // Reset igual que antes
       setGuardado(true);
       setLiquidacionActiva(false);
       setMostrarInputsAbono(false);
       setEditandoNuevoCliente(false);
       setMostrarListaClientes(false);
+      setModoModificacion(false);
+
       setNuevoClienteData({
         cliCodigo: "",
         cliNombre: "",
@@ -738,7 +782,7 @@ const AbonoForm: React.FC = () => {
         fp: "Diario",
         tarFecha: "",
       });
-      setModoModificacion(false);
+
       setDatosModificacion({
         cliNombre: "",
         cliCalle: "",
@@ -746,7 +790,7 @@ const AbonoForm: React.FC = () => {
         fp: "Diario",
       });
 
-      alert("✅ Liquidación finalizada y reporte guardado correctamente.");
+      alert("✅ Liquidación guardada exitosamente.");
     } catch (err: any) {
       console.error("Error guardando reporte:", err);
       setErrorReporte(err.message || "Error al guardar el reporte");
@@ -755,6 +799,97 @@ const AbonoForm: React.FC = () => {
       setGuardandoReporte(false);
     }
   };
+
+  useEffect(() => {
+    if (clienteActual?.tarjetaActiva?.iten) {
+      setItenActual(clienteActual.tarjetaActiva.iten);
+    }
+  }, [clienteActual]);
+
+  //Guardar
+  useEffect(() => {
+    if (!estadoCargado) return;
+
+    const estado = {
+      liquidacionActiva,
+      cobradorSeleccionado,
+      itenActual,
+
+      totalAbonos,
+      totalPrestamos,
+      gastos,
+      otrGas,
+      descuento,
+      base,
+      efectivoIngresado,
+      diferencia,
+
+      montoAbono,
+      saldoEscrito,
+    };
+
+    localStorage.setItem("estado_liquidacion", JSON.stringify(estado));
+  }, [
+    estadoCargado,
+    liquidacionActiva,
+    cobradorSeleccionado,
+    itenActual,
+    totalAbonos,
+    totalPrestamos,
+    gastos,
+    otrGas,
+    descuento,
+    base,
+    efectivoIngresado,
+    diferencia,
+    montoAbono,
+    saldoEscrito,
+  ]);
+
+  // Restaurar
+  useEffect(() => {
+  const data = localStorage.getItem("estado_liquidacion");
+  if (!data) {
+    setEstadoCargado(true);
+    return;
+  }
+
+  try {
+    const estado = JSON.parse(data);
+
+    if (estado.liquidacionActiva) {
+      setLiquidacionActiva(true);
+
+      setCobradorSeleccionado(estado.cobradorSeleccionado || "");
+
+      setTotalAbonos(estado.totalAbonos || 0);
+      setTotalPrestamos(estado.totalPrestamos || 0);
+      setGastos(estado.gastos || 0);
+      setOtrGas(estado.otrGas || 0);
+      setDescuento(estado.descuento || 0);
+      setBase(estado.base || 0);
+      setEfectivoIngresado(estado.efectivoIngresado || 0);
+
+      setMontoAbono(estado.montoAbono || "");
+      setSaldoEscrito(estado.saldoEscrito || "");
+
+      if (estado.itenActual && estado.cobradorSeleccionado) {
+        // 🔥 Recargar cliente exacto desde backend
+        fetch(`http://localhost:3000/clientes/cobrador/${estado.cobradorSeleccionado}/navegar?iten=${estado.itenActual}&direccion=actual`)
+          .then(res => res.json())
+          .then(cli => {
+            setClienteActual(cli);
+          })
+          .catch(err => console.error("Error restaurando cliente:", err));
+      }
+    }
+  } catch (err) {
+    console.error("Error restaurando liquidación:", err);
+  }
+
+  setEstadoCargado(true);
+}, []);
+
 
   return (
     <div className="bg-gray-200 dark:bg-gray-800 h-screen p-4 font-sans overflow-hidden">

@@ -105,16 +105,23 @@ const AbonoForm: React.FC = () => {
   const [descuento, setDescuento] = useState<number>(0);
   const [efectivoIngresado, setEfectivoIngresado] = useState<number>(0);
   const [abonoProcesando, setAbonoProcesando] = useState(false);
+  const [guardado, setGuardado] = useState<boolean>(false); // Nuevo estado para guardado
+  const [guardandoReporte, setGuardandoReporte] = useState(false);
+  const [errorReporte, setErrorReporte] = useState<string | null>(null);
 
-  // ✅ Valores acumulados
-  const cobro = totalAbonos; // ✅ total de abonos = cobro
-  const prestamo = totalPrestamos; // ✅ total de nuevos préstamos
+  const [estadoCargado, setEstadoCargado] = useState(false);
 
-  // ✅ Cálculo del efectivo esperado
+  const [itenActual, setItenActual] = useState<number | null>(null);
+
+  // Valores acumulados
+  const cobro = totalAbonos; // total de abonos = cobro
+  const prestamo = totalPrestamos; // total de nuevos préstamos
+
+  // Cálculo del efectivo esperado
   const efectivoEsperado =
     cobro - prestamo - gastos - otrGas + base - descuento;
 
-  // ✅ Diferencia: lo que se ingresó vs lo que debería haber
+  // Diferencia: lo que se ingresó vs lo que debería haber
   const diferencia = efectivoIngresado - efectivoEsperado;
 
   const cargarClientesExistentes = async () => {
@@ -671,6 +678,219 @@ const AbonoForm: React.FC = () => {
     setMostrarListaClientes(false);
     // No se reinicia nuevoClienteData porque no se usa en modo modificación
   };
+
+  const handleFinalizarLiquidacion = async () => {
+    if (guardandoReporte) return;
+    if (!liquidacionActiva) {
+      alert("No hay una liquidación activa.");
+      return;
+    }
+
+    // 1️⃣ Primera pregunta: finalizar liquidación
+    const confirmarFinalizar = window.confirm(
+      "¿Está seguro que desea finalizar la liquidación?"
+    );
+
+    if (!confirmarFinalizar) {
+      return; // cancela todo
+    }
+
+    // 2️⃣ Segunda pregunta: guardar en la base de datos
+    const deseaGuardar = window.confirm(
+      "¿Desea guardar esta liquidación en la base de datos?"
+    );
+
+    // --- SI NO QUIERE GUARDAR ---
+    if (!deseaGuardar) {
+      // Cierra liquidación sin guardar
+      setGuardado(true);
+      setLiquidacionActiva(false);
+      setMostrarInputsAbono(false);
+      setEditandoNuevoCliente(false);
+      setMostrarListaClientes(false);
+      setModoModificacion(false);
+
+      setNuevoClienteData({
+        cliCodigo: "",
+        cliNombre: "",
+        cliCalle: "",
+        tarValor: "",
+        tiempo: "",
+        fp: "Diario",
+        tarFecha: "",
+      });
+
+      setDatosModificacion({
+        cliNombre: "",
+        cliCalle: "",
+        tiempo: "",
+        fp: "Diario",
+      });
+
+      alert("Liquidación finalizada sin guardar.");
+      localStorage.removeItem("estado_liquidacion");
+      return;
+    }
+
+    // --- SI QUIERE GUARDAR ---
+    const payload = {
+      cobCodigo: cobradorSeleccionado || "N/A",
+      cobro: Number(totalAbonos || 0),
+      prestamos: Number(totalPrestamos || 0),
+      gastos: Number(gastos || 0),
+      otrosGastos: Number(otrGas || 0),
+      base: Number(base || 0),
+      descuento: Number(descuento || 0),
+      efectivo: Number(efectivoIngresado || 0),
+      diferencia: Number(diferencia || 0),
+      fecha: new Date().toISOString(),
+    };
+
+    try {
+      setGuardandoReporte(true);
+      setErrorReporte(null);
+
+      const res = await fetch("http://localhost:3000/reporte", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const msg = data.message || `Error ${res.status}: ${res.statusText}`;
+        throw new Error(msg);
+      }
+
+      const creado = await res.json();
+      console.log("📦 Reporte guardado:", creado);
+
+      // Reset igual que antes
+      setGuardado(true);
+      setLiquidacionActiva(false);
+      setMostrarInputsAbono(false);
+      setEditandoNuevoCliente(false);
+      setMostrarListaClientes(false);
+      setModoModificacion(false);
+
+      setNuevoClienteData({
+        cliCodigo: "",
+        cliNombre: "",
+        cliCalle: "",
+        tarValor: "",
+        tiempo: "",
+        fp: "Diario",
+        tarFecha: "",
+      });
+
+      setDatosModificacion({
+        cliNombre: "",
+        cliCalle: "",
+        tiempo: "",
+        fp: "Diario",
+      });
+
+      alert("✅ Liquidación guardada exitosamente.");
+    } catch (err: any) {
+      console.error("Error guardando reporte:", err);
+      setErrorReporte(err.message || "Error al guardar el reporte");
+      alert(`❌ ${err.message || "Error al guardar el reporte"}`);
+    } finally {
+      setGuardandoReporte(false);
+    }
+  };
+
+  useEffect(() => {
+    if (clienteActual?.tarjetaActiva?.iten) {
+      setItenActual(clienteActual.tarjetaActiva.iten);
+    }
+  }, [clienteActual]);
+
+  //Guardar
+  useEffect(() => {
+    if (!estadoCargado) return;
+
+    const estado = {
+      liquidacionActiva,
+      cobradorSeleccionado,
+      itenActual,
+
+      totalAbonos,
+      totalPrestamos,
+      gastos,
+      otrGas,
+      descuento,
+      base,
+      efectivoIngresado,
+      diferencia,
+
+      montoAbono,
+      saldoEscrito,
+    };
+
+    localStorage.setItem("estado_liquidacion", JSON.stringify(estado));
+  }, [
+    estadoCargado,
+    liquidacionActiva,
+    cobradorSeleccionado,
+    itenActual,
+    totalAbonos,
+    totalPrestamos,
+    gastos,
+    otrGas,
+    descuento,
+    base,
+    efectivoIngresado,
+    diferencia,
+    montoAbono,
+    saldoEscrito,
+  ]);
+
+  // Restaurar
+  useEffect(() => {
+  const data = localStorage.getItem("estado_liquidacion");
+  if (!data) {
+    setEstadoCargado(true);
+    return;
+  }
+
+  try {
+    const estado = JSON.parse(data);
+
+    if (estado.liquidacionActiva) {
+      setLiquidacionActiva(true);
+
+      setCobradorSeleccionado(estado.cobradorSeleccionado || "");
+
+      setTotalAbonos(estado.totalAbonos || 0);
+      setTotalPrestamos(estado.totalPrestamos || 0);
+      setGastos(estado.gastos || 0);
+      setOtrGas(estado.otrGas || 0);
+      setDescuento(estado.descuento || 0);
+      setBase(estado.base || 0);
+      setEfectivoIngresado(estado.efectivoIngresado || 0);
+
+      setMontoAbono(estado.montoAbono || "");
+      setSaldoEscrito(estado.saldoEscrito || "");
+
+      if (estado.itenActual && estado.cobradorSeleccionado) {
+        // 🔥 Recargar cliente exacto desde backend
+        fetch(`http://localhost:3000/clientes/cobrador/${estado.cobradorSeleccionado}/navegar?iten=${estado.itenActual}&direccion=actual`)
+          .then(res => res.json())
+          .then(cli => {
+            setClienteActual(cli);
+          })
+          .catch(err => console.error("Error restaurando cliente:", err));
+      }
+    }
+  } catch (err) {
+    console.error("Error restaurando liquidación:", err);
+  }
+
+  setEstadoCargado(true);
+}, []);
+
+
   return (
     <div className="bg-gray-200 dark:bg-gray-800 h-screen p-4 font-sans overflow-hidden">
       <div className="mx-auto h-full max-w-[100vw] flex flex-col">
@@ -1552,7 +1772,9 @@ const AbonoForm: React.FC = () => {
 
               <div className="items-center flex gap-1">
                 <div className="bg-green-500 dark:bg-green-600 px-1 py-1 flex-1 text-center text-xs font-bold text-black">
-                  {efectivoEsperado >= 0 ? `+${efectivoEsperado}` : efectivoEsperado}
+                  {efectivoEsperado >= 0
+                    ? `+${efectivoEsperado}`
+                    : efectivoEsperado}
                 </div>
                 <label className="text-xs font-bold text-red-600 dark:text-red-400 whitespace-nowrap">
                   Diferencia:
@@ -1567,8 +1789,14 @@ const AbonoForm: React.FC = () => {
               Fecha
             </div>
 
-            <div className="bg-red-600 dark:bg-red-700 text-white text-center py-1 font-bold text-xs rounded shadow">
-              SIN GUARDAR
+            <div
+              className={`text-white text-center py-1 font-bold text-xs rounded shadow transition-colors ${
+                guardado
+                  ? "bg-green-600 dark:bg-green-700"
+                  : "bg-red-600 dark:bg-red-700"
+              }`}
+            >
+              {guardado ? "GUARDADO" : "SIN GUARDAR"}
             </div>
 
             <div className="flex-1">
@@ -1618,6 +1846,7 @@ const AbonoForm: React.FC = () => {
                   setBase(0);
                   setDescuento(0);
                   setEfectivoIngresado(0);
+                  setGuardado(false);
                 }}
                 disabled={liquidacionActiva}
                 className={`border-2 w-full px-2 py-1 text-xs font-bold mb-1 ${
@@ -1631,44 +1860,18 @@ const AbonoForm: React.FC = () => {
 
               <button
                 type="submit"
-                onClick={() => {
-                  const confirmacion = window.confirm(
-                    "¿Está seguro que desea finalizar la liquidación?"
-                  );
-                  if (confirmacion) {
-                    setLiquidacionActiva(false);
-
-                    // 👇 cerrar inputs de abono
-                    setMostrarInputsAbono(false);
-
-                    // 👇 cancelar nuevo cliente
-                    setEditandoNuevoCliente(false);
-                    setMostrarListaClientes(false);
-                    setNuevoClienteData({
-                      cliCodigo: "",
-                      cliNombre: "",
-                      cliCalle: "",
-                      tarValor: "",
-                      tiempo: "",
-                      fp: "Diario",
-                      tarFecha: "",
-                    });
-
-                   
-                    setModoModificacion(false);
-                    setDatosModificacion({
-                      cliNombre: "",
-                      cliCalle: "",
-                      tiempo: "",
-                      fp: "Diario",
-                    });
-                  }
-                }}
-                className="border-2 border-gray-400 dark:border-gray-500 dark:text-white w-full bg-white
-            dark:bg-gray-600 px-2 py-1 text-xs font-bold"
+                onClick={handleFinalizarLiquidacion}
+                disabled={guardandoReporte}
+                className="border-2 border-gray-400 dark:border-gray-500 dark:text-white w-full bg-white dark:bg-gray-600 px-2 py-1 text-xs font-bold"
               >
-                Finalizar Liquidacion
+                {guardandoReporte ? "Guardando..." : "Finalizar Liquidacion"}
               </button>
+
+              {errorReporte && (
+                <div className="text-red-600 text-sm mt-2">
+                  Error al guardar el reporte: {errorReporte}
+                </div>
+              )}
             </div>
           </div>
         </div>
