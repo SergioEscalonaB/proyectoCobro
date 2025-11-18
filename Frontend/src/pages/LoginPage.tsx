@@ -1,12 +1,9 @@
-// src/pages/LoginPage.tsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 /**
  * Componente de la página de Login.
- * 
- * Permite al usuario "iniciar sesión" con credenciales hardcodeadas
- * y redirige al menú principal.
+ * Permite al usuario "iniciar sesión" con credenciales hardcodeadas y redirige al menú principal.
  */
 const LoginPage: React.FC = () => {
   // Hook para la navegación programática

@@ -1,27 +1,22 @@
-// src/pages/MenuPage.tsx
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 /**
  * Componente de la página del Menú Principal.
- * 
- * Muestra las opciones de navegación y permite al usuario cerrar sesión.
- */
+ * Muestra las opciones de navegación y permite al usuario cerrar sesión.*/
 const MenuPage: React.FC = () => {
   // Hook para la navegación programática
   const navigate = useNavigate();
 
   // Opciones del menú con sus rutas
   const menuOptions = [
-    { name: 'Cobro', path: '/cobro', description: 'Gestión de cobros y pagos.' },
-    { name: 'Cliente', path: '/cliente', description: 'Administración de la información de clientes.' },
-    { name: 'Abono (Tu Página HTML)', path: '/abono', description: 'Página de gestión de abonos (convertida de tu HTML).' },
-    { name: 'Reporte', path: '/reporte', description: 'Generación y visualización de reportes.' },
+    { name: 'Cobros', path: '/cobro', description: 'Gestión de rutas.' },
+    { name: 'Clientes', path: '/cliente', description: 'Administración de la información de los clientes.' },
+    { name: 'Liquidacion', path: '/abono', description: 'Página de gestión de abonos.' },
+    { name: 'Reportes', path: '/reporte', description: 'Generación y visualización de reportes.' },
   ];
 
-  /**
-   * Maneja el cierre de sesión del usuario.
-   */
+  /*Maneja el cierre de sesión del usuario.*/
   const handleLogout = () => {
     // 1. **Cerrar Sesión**
     // Se elimina el indicador de sesión del almacenamiento local.
