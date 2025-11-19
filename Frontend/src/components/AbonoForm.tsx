@@ -53,7 +53,7 @@ const AbonoForm: React.FC = () => {
   const [cobradores, setCobradores] = useState<Cobrador[]>([]); // Lista de cobradores
   const [cobradorSeleccionado, setCobradorSeleccionado] = useState<string>(""); // Código del cobrador seleccionado
   const [clienteActual, setClienteActual] = useState<Cliente | null>(null); // Cliente actual
-  const [descripcionAbonos, setDescripcionAbonos] = useState<Descripcion[]>([]); 
+  const [descripcionAbonos, setDescripcionAbonos] = useState<Descripcion[]>([]);
   const [cargando, setCargando] = useState<boolean>(false); // Estado de carga
   const [error, setError] = useState<string>(""); // Mensaje de error
   const [mostrarInputsAbono, setMostrarInputsAbono] = useState(false); // Mostrar inputs de abono
@@ -61,10 +61,12 @@ const AbonoForm: React.FC = () => {
   const [saldoEscrito, setSaldoEscrito] = useState<number | "">(""); // Saldo escrito
   const [abonoVisitado, setAbonoVisitado] = useState(false); // Marca si el usuario entró al flujo de abono
   const abonoInputRef = useRef<HTMLInputElement>(null); // Ref para el input de abono
-  const saldoInputRef = useRef<HTMLInputElement>(null); // Ref para el input de saldo 
+  const saldoInputRef = useRef<HTMLInputElement>(null); // Ref para el input de saldo
   const [posicionCliente, setPosicionCliente] = useState<number | null>(null); // Posición del cliente actual dentro de la lista
   const [totalClientes, setTotalClientes] = useState<number>(0); // Total de clientes del cobrador
-  const [modoNuevoCliente, setModoNuevoCliente] = useState<"antes" | "despues">("antes"); // Modo de nuevo cliente
+  const [modoNuevoCliente, setModoNuevoCliente] = useState<"antes" | "despues">(
+    "antes"
+  ); // Modo de nuevo cliente
   const [editandoNuevoCliente, setEditandoNuevoCliente] = useState(false);
   const [nuevoClienteData, setNuevoClienteData] = useState({
     cliCodigo: "",
@@ -82,7 +84,7 @@ const AbonoForm: React.FC = () => {
     cliCalle: "",
     tiempo: "",
     fp: "Diario",
-  }); // Datos para modificación  
+  }); // Datos para modificación
 
   const [clientesExistentes, setClientesExistentes] = useState<Cliente[]>([]); // Lista de clientes existentes
   const [mostrarListaClientes, setMostrarListaClientes] = useState(false); // Mostrar lista de clientes
@@ -103,14 +105,18 @@ const AbonoForm: React.FC = () => {
 
   const [estadoCargado, setEstadoCargado] = useState(false); // Marca si el estado ha sido cargado desde localStorage
   const [itenActual, setItenActual] = useState<number | null>(null); // Iten del cliente actual (para restaurar posición)
-  const [tarjetasCanceladas, setTarjetasCanceladas] = useState<Array<{ nombre: string; ultimoAbono: number;diasVencidos: number;}>>([]); // Tarjetas canceladas durante la liquidación
-  const [prestamosIngresados, setPrestamosIngresados] = useState<Array<{nombre: string;valorPrestamo: number;}>>([]); // Préstamos ingresados durante la liquidación
-
+  const [tarjetasCanceladas, setTarjetasCanceladas] = useState<
+    Array<{ nombre: string; ultimoAbono: number; diasVencidos: number }>
+  >([]); // Tarjetas canceladas durante la liquidación
+  const [prestamosIngresados, setPrestamosIngresados] = useState<
+    Array<{ nombre: string; valorPrestamo: number }>
+  >([]); // Préstamos ingresados durante la liquidación
 
   const cobro = totalAbonos; // total de abonos = cobro
   const prestamo = totalPrestamos; // total de nuevos préstamos
 
-  const efectivoEsperado = cobro - prestamo - gastos - otrGas + base - descuento; // Efectivo que debería haber
+  const efectivoEsperado =
+    cobro - prestamo - gastos - otrGas + base - descuento; // Efectivo que debería haber
   const diferencia = efectivoIngresado - efectivoEsperado; // Diferencia entre efectivo ingresado y esperado
 
   const cargarClientesExistentes = async () => {
@@ -932,6 +938,58 @@ const AbonoForm: React.FC = () => {
     year: "numeric",
   });
 
+  // Función para buscar y cargar un cliente por cédula, incluyendo su posición
+  const buscarClientePorCodigo = async (cliCodigo: number) => {
+    if (!cobradorSeleccionado) {
+      alert("Primero seleccione un cobrador");
+      return;
+    }
+
+    try {
+      setCargando(true);
+      setError("");
+
+      // 1. Cargar el cliente por cédula
+      const resCliente = await fetch(
+        `http://localhost:3000/clientes/${cliCodigo}`
+      );
+      if (!resCliente.ok) throw new Error("Cliente no encontrado");
+      const cliente = await resCliente.json();
+
+      // 2. Verificar que pertenezca al cobrador seleccionado
+      if (cliente.cobCodigo !== cobradorSeleccionado) {
+        alert(`El cliente no pertenece al cobrador ${cobradorSeleccionado}`);
+        return;
+      }
+
+      // 3. Cargar su posición en la lista del cobrador
+      const resLista = await fetch(
+        `http://localhost:3000/clientes/cobrador/${cobradorSeleccionado}/todos`
+      );
+      if (!resLista.ok) throw new Error("Error al cargar lista de clientes");
+      const listaClientes: Cliente[] = await resLista.json();
+      const clientesActivos = listaClientes.filter(
+        (c) => c.tarjetaActiva !== null
+      );
+      const posicion = clientesActivos.findIndex(
+        (c) => c.cliCodigo === cliCodigo
+      );
+
+      if (posicion === -1) {
+        alert("El cliente no está activo en este cobrador");
+        return;
+      }
+
+      setClienteActual(cliente);
+      setPosicionCliente(posicion + 1);
+      setTotalClientes(clientesActivos.length);
+    } catch (err: any) {
+      console.error("Error en búsqueda:", err);
+      setError(`Cliente no encontrado o inactivo: ${err.message}`);
+    } finally {
+      setCargando(false);
+    }
+  };
   return (
     <div className="bg-gray-200 dark:bg-gray-800 h-screen p-4 font-sans overflow-hidden">
       <div className="mx-auto h-full max-w-[100vw] flex flex-col">
@@ -1900,23 +1958,58 @@ const AbonoForm: React.FC = () => {
 
             <div className="bg-gray-100 dark:bg-gray-700 p-2 rounded shadow">
               <label className="text-xs font-bold mb-1 text-gray-900 block dark:text-white">
-                Buscar
+                Buscar Cliente
               </label>
+              {/* Búsqueda por nombre*/}
               <select
-                className="border border-gray-400 dark:border-gray-500 dark:text-white w-full bg-white
-            dark:bg-gray-600 px-1 py-0.5 text-xs mb-1"
+                className="border border-gray-400 dark:border-gray-500 dark:text-white w-full bg-white dark:bg-gray-600 px-1 py-0.5 text-xs mb-1"
+                value=""
+                onChange={(e) => {
+                  const cliCodigo = e.target.value;
+                  if (cliCodigo) {
+                    buscarClientePorCodigo(Number(cliCodigo));
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    const cliCodigo = (e.target as HTMLSelectElement).value;
+                    if (cliCodigo) {
+                      buscarClientePorCodigo(Number(cliCodigo));
+                    }
+                  }
+                }}
               >
-                <option>Seleccionar</option>
+                <option value="">— Buscar por nombre —</option>
+                {clientesExistentes
+                  .filter((c) => c.tarjetaActiva !== null) // Solo activos
+                  .map((cliente) => (
+                    <option key={cliente.cliCodigo} value={cliente.cliCodigo}>
+                      {cliente.cliNombre} ({cliente.cliCodigo})
+                    </option>
+                  ))}
               </select>
 
               <div className="items-center mb-1 flex gap-1">
-                <label className="text-xs font-bold text-gray-900 dark:text-white">
+                <label className="text-xs font-bold text-gray-900 dark:text-white whitespace-nowrap">
                   Cédula
                 </label>
                 <input
                   type="text"
-                  className="flex-1 border border-gray-400 dark:border-gray-500 dark:text-white bg-white
-              dark:bg-gray-600 px-1 py-0.5 text-xs"
+                  placeholder="Ej: 123456"
+                  className="flex-1 border border-gray-400 dark:border-gray-500 dark:text-white bg-white dark:bg-gray-600 px-1 py-0.5 text-xs"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      const valor = (e.target as HTMLInputElement).value.trim();
+                      const cliCodigo = parseInt(valor, 10);
+                      if (!isNaN(cliCodigo)) {
+                        buscarClientePorCodigo(cliCodigo);
+                      } else {
+                        alert("Ingrese una cédula válida");
+                      }
+                    }
+                  }}
                 />
               </div>
 
