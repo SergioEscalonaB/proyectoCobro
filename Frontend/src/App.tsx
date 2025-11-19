@@ -33,7 +33,6 @@ const ProtectedRoute: React.FC<{ element: React.ReactNode }> = ({ element }) => 
 
 /**
  * Componente principal de la aplicación (App)
- * 
  * Configura el sistema de navegación de la aplicación usando React Router.
  */
 const App: React.FC = () => {
@@ -50,11 +49,10 @@ const App: React.FC = () => {
         <Route path="/" element={<ProtectedRoute element={<MenuPage />} />} />
         <Route path="/cobro" element={<ProtectedRoute element={<CobroPage />} />} />
         <Route path="/cliente" element={<ProtectedRoute element={<ClientePage />} />} />
-        {/* La página Abono es la que contiene el HTML que proporcionaste */}
         <Route path="/abono" element={<ProtectedRoute element={<AbonoPage />} />} />
         <Route path="/reporte" element={<ProtectedRoute element={<ReportePage />} />} />
 
-        {/* Ruta por defecto: redirige a la página principal (que es el Menú) */}
+        {/* Ruta por defecto: redirige a la página principal*/}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

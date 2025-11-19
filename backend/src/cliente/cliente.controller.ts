@@ -116,6 +116,12 @@ export class ClienteController {
     );
   }
 
+  // Obtener el historial de tarjetas de un cliente
+  @Get(':cliCodigo/historial-tarjetas')
+  obtenerHistorialTarjetas(@Param('cliCodigo') cliCodigo: string) {
+    return this.clienteService.obtenerHistorialTarjetasPorCliente(cliCodigo);
+  }
+
   // ========== ENDPOINTS POR ITEN ==========
   // Obtener un cliente por su iten
   @Get('iten/:iten')

@@ -961,4 +961,46 @@ export class ClienteService {
 
     return clientesConSaldo.sort((a, b) => a.iten - b.iten);
   }
+
+  // Obtener historial de tarjetas por cliente
+async obtenerHistorialTarjetasPorCliente(cliCodigo: string) {
+  const cliente = await this.prisma.cliente.findUnique({
+    where: { cliCodigo: Number(cliCodigo) },
+    include: {
+      tarjetas: {
+        include: {
+          descripciones: {
+            orderBy: { desFecha: 'desc' },
+            // Puedes tomar solo la última o todas:
+            // take: 1, // ← si solo quieres la última
+          },
+        },
+        orderBy: { tarFecha: 'desc' }, // o tarCodigo, según prioridad
+      },
+    },
+  });
+
+  if (!cliente) {
+    throw new NotFoundException(`Cliente con código ${cliCodigo} no encontrado`);
+  }
+
+  const tarjetasActivas = cliente.tarjetas.filter(t => t.estado === 'Activa');
+  const tarjetasInactivas = cliente.tarjetas.filter(t => t.estado !== 'Activa');
+
+  const tarjetaActiva = tarjetasActivas[0] || null;
+  const saldoTotal = tarjetaActiva ? this.getSaldoPendiente(tarjetaActiva) : 0;
+
+  return {
+    cliCodigo: cliente.cliCodigo,
+    cliNombre: cliente.cliNombre,
+    cliCalle: cliente.cliCalle,
+    tarjetaActiva: tarjetaActiva
+      ? { ...tarjetaActiva, saldoActual: saldoTotal }
+      : null,
+    tarjetasInactivas: tarjetasInactivas.map(t => ({
+      ...t,
+      saldoActual: this.getSaldoPendiente(t),
+    })),
+  };
+}
 }

@@ -12,7 +12,7 @@ const MenuPage: React.FC = () => {
   const menuOptions = [
     { name: 'Cobros', path: '/cobro', description: 'Gestión de rutas.' },
     { name: 'Clientes', path: '/cliente', description: 'Administración de la información de los clientes.' },
-    { name: 'Liquidacion', path: '/abono', description: 'Página de gestión de abonos.' },
+    { name: 'Abonos', path: '/abono', description: 'Página de gestión de abonos.' },
     { name: 'Reportes', path: '/reporte', description: 'Generación y visualización de reportes.' },
   ];
 
