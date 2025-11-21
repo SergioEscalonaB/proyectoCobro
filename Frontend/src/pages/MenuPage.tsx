@@ -55,10 +55,9 @@ const MenuPage: React.FC = () => {
         </div>
 
         <div className="mt-12 p-6 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-800 rounded-lg">
-          <p className="font-semibold">Nota para el estudiante:</p>
+          <p className="font-semibold">Cosas que hacer:</p>
           <p className="text-sm">
-            La navegación se realiza con **React Router DOM** |`-Link to="..."-`|, que permite cambiar de página
-            sin recargar todo el navegador, lo que es la práctica estándar en aplicaciones React.
+            
           </p>
         </div>
       </div>

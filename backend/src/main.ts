@@ -7,7 +7,7 @@ async function bootstrap() {
   
   //AGREGAR CORS
   app.enableCors({
-    origin: 'http://localhost:5173', // o el puerto de tu frontend React
+    origin: 'http://localhost:5173',
     credentials: true,
   });
   

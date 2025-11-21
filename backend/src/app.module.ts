@@ -5,8 +5,9 @@ import { CobroModule } from './cobro/cobro.module';
 import { TarjetaModule } from './tarjeta/tarjeta.module';
 import { DescripcionModule  } from './descripcion/descripcion.module';
 import { ReporteModule } from './reporte/reporte.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
-  imports: [PrismaModule, ClienteModule, CobroModule, TarjetaModule, DescripcionModule, ReporteModule],
+  imports: [PrismaModule, ClienteModule, CobroModule, TarjetaModule, DescripcionModule, ReporteModule, AuthModule],
 })
 export class AppModule {}

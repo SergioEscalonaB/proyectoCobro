@@ -1,5 +1,3 @@
-// src/App.tsx
-
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import MenuPage from './pages/MenuPage';
@@ -8,55 +6,39 @@ import ClientePage from './pages/ClientePage';
 import AbonoPage from './pages/AbonoPage';
 import ReportePage from './pages/ReportePage';
 
-/**
- * Componente de Ruta Protegida (ProtectedRoute)
- * 
- * Este componente verifica si el usuario está "logueado" antes de permitir
- * el acceso a la página. Si no lo está, redirige a la página de Login.
- * 
- * @param {React.ReactNode} element - El componente de página a renderizar si está autenticado.
- */
+/*Ruta protegida Valida que exista un token para permitir el acceso. */
 const ProtectedRoute: React.FC<{ element: React.ReactNode }> = ({ element }) => {
-  // Simulación de autenticación: se verifica si existe una clave 'isLoggedIn' en localStorage
-  // En un proyecto real, esto se haría con un token de sesión o un contexto de autenticación.
-  const storedAuth = localStorage.getItem('isLoggedIn') === 'true';
+  const token = localStorage.getItem('token');
 
-  // Si no está autenticado, redirige a /login
-  if (!storedAuth) {
+  // Si no hay token, redirige a login
+  if (!token) {
     return <Navigate to="/login" replace />;
   }
 
-  // Si está autenticado, muestra el elemento (la página)
+  // Si hay token, permite el acceso
   return <>{element}</>;
 };
 
-
-/**
- * Componente principal de la aplicación (App)
- * Configura el sistema de navegación de la aplicación usando React Router.
- */
+// Componente principal de la aplicación
 const App: React.FC = () => {
   return (
-    // BrowserRouter: Contenedor principal para el enrutamiento.
     <BrowserRouter>
-      {/* Routes: Define el área donde se renderizarán los componentes según la ruta */}
       <Routes>
-        {/* Ruta de Login: accesible para todos */}
+        {/* Página de Login */}
         <Route path="/login" element={<LoginPage />} />
-        
-        {/* Rutas Protegidas: solo accesibles si el usuario está "logueado" */}
-        {/* Usamos ProtectedRoute para asegurar que solo usuarios autenticados vean estas páginas */}
+
+        {/* Rutas protegidas */}
         <Route path="/" element={<ProtectedRoute element={<MenuPage />} />} />
         <Route path="/cobro" element={<ProtectedRoute element={<CobroPage />} />} />
         <Route path="/cliente" element={<ProtectedRoute element={<ClientePage />} />} />
         <Route path="/abono" element={<ProtectedRoute element={<AbonoPage />} />} />
         <Route path="/reporte" element={<ProtectedRoute element={<ReportePage />} />} />
 
-        {/* Ruta por defecto: redirige a la página principal*/}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </BrowserRouter>
-  );
-};
-
-export default App;
+              {/* Cualquier otra ruta redirige al inicio */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </BrowserRouter>
+        );
+      };
+      
+      export default App;

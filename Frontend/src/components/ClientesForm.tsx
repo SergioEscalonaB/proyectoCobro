@@ -30,7 +30,6 @@ interface Descripcion {
   id: number;
 }
 
-
 const ClientesForm: React.FC = () => {
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [cedulaBusqueda, setCedulaBusqueda] = useState<string>("");

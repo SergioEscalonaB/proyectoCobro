@@ -1,44 +1,43 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-/**
- * Componente de la página de Login.
- * Permite al usuario "iniciar sesión" con credenciales hardcodeadas y redirige al menú principal.
- */
 const LoginPage: React.FC = () => {
-  // Hook para la navegación programática
   const navigate = useNavigate();
-  // Estados para los campos del formulario
   const [usuario, setUsuario] = useState('');
   const [contrasena, setContrasena] = useState('');
-  // Estado para mensajes de error
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Credenciales de acceso fácil (hardcodeadas)
-  const USUARIO_FACIL = 'admin';
-  const CONTRASENA_FACIL = '1234';
-
-  /**
-   * Maneja el envío del formulario de login.
-   * @param e Evento de formulario.
-   */
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(''); // Limpiar errores previos
+    setError('');
+    setIsLoading(true);
 
-    // 1. **Validación de Credenciales**
-    // Se verifica si el usuario y la contraseña coinciden con los valores predefinidos.
-    if (usuario === USUARIO_FACIL && contrasena === CONTRASENA_FACIL) {
-      // 2. **Simulación de Sesión**
-      // Se guarda un indicador en el almacenamiento local para simular que el usuario ha iniciado sesión.
-      localStorage.setItem('isLoggedIn', 'true');
-      
-      // 3. **Redirección**
-      // Se navega a la ruta principal de la aplicación (el menú).
-      navigate('/', { replace: true });
-    } else {
-      // 4. **Manejo de Error**
-      setError('Usuario o Contraseña incorrectos. Usa admin/1234.');
+    try {
+      const response = await fetch('http://localhost:3000/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ usuario, contrasena }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.token) {
+        // Guardar el JWT
+        localStorage.setItem('token', data.token);
+        // Redirigir al menú principal
+        navigate('/', { replace: true });
+      } else {
+        // Error desde el backend credenciales inválidas
+        setError(data.message || 'Usuario o contraseña incorrectos.');
+      }
+    } catch (err) {
+      console.error('Error en login:', err);
+      setError('Error de conexión. Por favor intenta más tarde.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -66,6 +65,7 @@ const LoginPage: React.FC = () => {
               value={usuario}
               onChange={(e) => setUsuario(e.target.value)}
               required
+              disabled={isLoading}
             />
           </div>
 
@@ -81,6 +81,7 @@ const LoginPage: React.FC = () => {
               value={contrasena}
               onChange={(e) => setContrasena(e.target.value)}
               required
+              disabled={isLoading}
             />
           </div>
 
@@ -89,13 +90,14 @@ const LoginPage: React.FC = () => {
             <button
               type="submit"
               className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full"
+              disabled={isLoading}
             >
-              Entrar
+              {isLoading ? 'Ingresando...' : 'Entrar'}
             </button>
           </div>
         </form>
         <p className="text-center text-xs text-gray-500 mt-4">
-          Acceso Fácil: Usuario: **{USUARIO_FACIL}** / Contraseña: **{CONTRASENA_FACIL}**
+          Usa tus credenciales de usuario para acceder.
         </p>
       </div>
     </div>

@@ -10,7 +10,9 @@ export class CobroService {
       select: {
         cobCodigo: true,
         cobNombre: true,
-        // Agrega otros campos que necesites en el frontend
+        cobDireccion: true,
+        cobTelefono: true,
+        cobMoto: true,
       },
       orderBy: {
         cobCodigo: 'asc' // Ordenar por código
@@ -24,7 +26,9 @@ export class CobroService {
       select: {
         cobCodigo: true,
         cobNombre: true,
-        // Otros campos que necesites
+        cobDireccion: true,
+        cobTelefono: true,
+        cobMoto: true,
       }
     });
   }
