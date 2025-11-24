@@ -58,7 +58,7 @@ Este es un sistema integral para la gestión de clientes, préstamos, abonos y l
 
 ---
 
-## 🛠️ Tecnologías Utilizadas
+## Tecnologías Utilizadas
 
 | Componente | Tecnología | Detalles |
 |-----------|------------|--------|
