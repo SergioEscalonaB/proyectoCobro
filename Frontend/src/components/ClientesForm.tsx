@@ -44,11 +44,12 @@ const ClientesForm: React.FC = () => {
   const [mostrarListaPorNombre, setMostrarListaPorNombre] = useState(false);
 
   const inputCedulaRef = useRef<HTMLInputElement>(null);
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
   // Cargar todos los clientes al inicio
   const cargarClientesExistentes = async () => {
     try {
-      const res = await fetch("http://localhost:3000/clientes");
+      const res = await fetch(`${API_URL}/clientes`);
       if (res.ok) {
         const data = await res.json();
         setClientesExistentes(data);
@@ -79,7 +80,7 @@ const ClientesForm: React.FC = () => {
     try {
       // Cargar historial completo (tarjetas activas + inactivas)
       const resCliente = await fetch(
-        `http://localhost:3000/clientes/${cedula}/historial-tarjetas`
+        `${API_URL}/clientes/${cedula}/historial-tarjetas`
       );
       if (!resCliente.ok) {
         if (resCliente.status === 404) throw new Error("Cliente no encontrado");
@@ -115,7 +116,7 @@ const ClientesForm: React.FC = () => {
     try {
       setCargando(true);
       const res = await fetch(
-        `http://localhost:3000/clientes/${cliente.cliCodigo}`,
+        `${API_URL}/clientes/${cliente.cliCodigo}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },

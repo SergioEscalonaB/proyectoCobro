@@ -49,7 +49,7 @@ const getDiasPorFrecuencia = (fp: string): number => {
 
 const AbonoForm: React.FC = () => {
   // Estados
-
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
   const [cobradores, setCobradores] = useState<Cobrador[]>([]); // Lista de cobradores
   const [cobradorSeleccionado, setCobradorSeleccionado] = useState<string>(""); // Código del cobrador seleccionado
   const [clienteActual, setClienteActual] = useState<Cliente | null>(null); // Cliente actual
@@ -121,7 +121,7 @@ const AbonoForm: React.FC = () => {
 
   const cargarClientesExistentes = async () => {
     try {
-      const response = await fetch("http://localhost:3000/clientes");
+      const response = await fetch(`${API_URL}/clientes`);
       console.log(
         "Respuesta del backend:",
         response.status,
@@ -162,7 +162,7 @@ const AbonoForm: React.FC = () => {
       setCargando(true);
       setError("");
 
-      const response = await fetch("http://localhost:3000/cobros");
+      const response = await fetch(`${API_URL}/cobros`);
 
       if (!response.ok) {
         throw new Error(`Error ${response.status}: ${response.statusText}`);
@@ -185,7 +185,7 @@ const AbonoForm: React.FC = () => {
       setError("");
 
       const response = await fetch(
-        `http://localhost:3000/clientes/cobrador/${cobCodigo}/primer-cliente`
+        `${API_URL}/clientes/cobrador/${cobCodigo}/primer-cliente`
       );
 
       if (!response.ok) {
@@ -213,7 +213,7 @@ const AbonoForm: React.FC = () => {
     try {
       setCargando(true);
       const response = await fetch(
-        `http://localhost:3000/clientes/cobrador/${cobCodigo}/ultimo-cliente`
+        `${API_URL}/clientes/cobrador/${cobCodigo}/ultimo-cliente`
       );
 
       if (!response.ok) throw new Error("No se pudo cargar el último cliente");
@@ -238,7 +238,7 @@ const AbonoForm: React.FC = () => {
       if (!itenActual) return;
 
       const response = await fetch(
-        `http://localhost:3000/clientes/cobrador/${cobradorSeleccionado}/navegar?iten=${itenActual}&direccion=${direccion}`
+        `${API_URL}/clientes/cobrador/${cobradorSeleccionado}/navegar?iten=${itenActual}&direccion=${direccion}`
       );
 
       if (response.ok) {
@@ -321,7 +321,7 @@ const AbonoForm: React.FC = () => {
       setError("");
 
       // Crear cliente
-      let url = "http://localhost:3000/clientes";
+      let url = `${API_URL}/clientes`;
       if (clienteActual?.tarjetaActiva?.iten) {
         const queryParams = new URLSearchParams({
           referencia: clienteActual.tarjetaActiva.iten.toString(),
@@ -357,7 +357,7 @@ const AbonoForm: React.FC = () => {
         ]);
       }
 
-      alert("✅ Cliente creado exitosamente");
+      alert("Cliente creado exitosamente");
       setEditandoNuevoCliente(false);
       setNuevoClienteData({
         cliCodigo: "",
@@ -371,7 +371,7 @@ const AbonoForm: React.FC = () => {
 
       // Recargar cliente recién creado
       try {
-        const res = await fetch(`http://localhost:3000/clientes/${cliCodigo}`);
+        const res = await fetch(`${API_URL}/clientes/${cliCodigo}`);
         if (res.ok) {
           const clienteCreado = await res.json();
           setClienteActual(clienteCreado);
@@ -386,8 +386,8 @@ const AbonoForm: React.FC = () => {
       }
     } catch (err: any) {
       console.error("Error en handleGuardarNuevoCliente:", err);
-      setError(`❌ ${err.message || "Error al crear el cliente"}`);
-      alert(`❌ ${err.message || "Error al crear el cliente"}`);
+      setError(` ${err.message || "Error al crear el cliente"}`);
+      alert(`${err.message || "Error al crear el cliente"}`);
     } finally {
       setCargando(false);
     }
@@ -433,7 +433,7 @@ const AbonoForm: React.FC = () => {
   const cargarDescripcionAbonos = async (cliCodigo: number) => {
     try {
       const tarjetaResponse = await fetch(
-        `http://localhost:3000/descripciones/cliente/${cliCodigo}/activa`
+        `${API_URL}/descripciones/cliente/${cliCodigo}/activa`
       );
       if (!tarjetaResponse.ok)
         throw new Error("Error al obtener la tarjeta activa");
@@ -514,7 +514,7 @@ const AbonoForm: React.FC = () => {
         desResta: saldo,
       };
 
-      const response = await fetch("http://localhost:3000/descripciones", {
+      const response = await fetch(`${API_URL}/descripciones`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -606,7 +606,7 @@ const AbonoForm: React.FC = () => {
   ) => {
     try {
       const response = await fetch(
-        `http://localhost:3000/clientes/cobrador/${cobCodigo}/todos`
+        `${API_URL}/clientes/cobrador/${cobCodigo}/todos`
       );
       if (!response.ok) throw new Error("Error al cargar la lista de clientes");
       const todosLosClientes: Cliente[] = await response.json();
@@ -675,7 +675,7 @@ const AbonoForm: React.FC = () => {
     try {
       setCargando(true);
       const response = await fetch(
-        `http://localhost:3000/clientes/${clienteActual!.cliCodigo}`,
+        `${API_URL}/clientes/${clienteActual!.cliCodigo}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -694,7 +694,7 @@ const AbonoForm: React.FC = () => {
       alert("Cliente actualizado correctamente");
       // Recargar cliente
       const res = await fetch(
-        `http://localhost:3000/clientes/${clienteActual!.cliCodigo}`
+        `${API_URL}/clientes/${clienteActual!.cliCodigo}`
       );
       if (res.ok) {
         const cliente = await res.json();
@@ -787,7 +787,7 @@ const AbonoForm: React.FC = () => {
       setGuardandoReporte(true);
       setErrorReporte(null);
 
-      const res = await fetch("http://localhost:3000/reporte", {
+      const res = await fetch(`${API_URL}/reporte`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -916,7 +916,7 @@ const AbonoForm: React.FC = () => {
         if (estado.itenActual && estado.cobradorSeleccionado) {
           //Recargar cliente exacto desde backend
           fetch(
-            `http://localhost:3000/clientes/cobrador/${estado.cobradorSeleccionado}/navegar?iten=${estado.itenActual}&direccion=actual`
+            `${API_URL}/clientes/cobrador/${estado.cobradorSeleccionado}/navegar?iten=${estado.itenActual}&direccion=actual`
           )
             .then((res) => res.json())
             .then((cli) => {
@@ -951,7 +951,7 @@ const AbonoForm: React.FC = () => {
 
       // 1. Cargar el cliente por cédula
       const resCliente = await fetch(
-        `http://localhost:3000/clientes/${cliCodigo}`
+        `${API_URL}/clientes/${cliCodigo}`
       );
       if (!resCliente.ok) throw new Error("Cliente no encontrado");
       const cliente = await resCliente.json();
@@ -964,7 +964,7 @@ const AbonoForm: React.FC = () => {
 
       // 3. Cargar su posición en la lista del cobrador
       const resLista = await fetch(
-        `http://localhost:3000/clientes/cobrador/${cobradorSeleccionado}/todos`
+        `${API_URL}/clientes/cobrador/${cobradorSeleccionado}/todos`
       );
       if (!resLista.ok) throw new Error("Error al cargar lista de clientes");
       const listaClientes: Cliente[] = await resLista.json();

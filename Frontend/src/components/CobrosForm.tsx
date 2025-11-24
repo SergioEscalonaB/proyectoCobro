@@ -26,11 +26,12 @@ const CobroForm: React.FC = () => {
   const [mostrarListaPorNombre, setMostrarListaPorNombre] = useState(false);
 
   const inputCodigoRef = useRef<HTMLInputElement>(null);
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
   // Cargar todos los cobradores al inicio
   const cargarCobradoresExistentes = async () => {
     try {
-      const res = await fetch('http://localhost:3000/cobros');
+      const res = await fetch(`${API_URL}/cobros`);
       if (res.ok) {
         const data: Cobro[] = await res.json();
         setCobradoresExistentes(data);
@@ -49,7 +50,7 @@ const CobroForm: React.FC = () => {
     setCargando(true);
     setError(null);
     try {
-      const res = await fetch(`http://localhost:3000/cobros/${codigo}`);
+      const res = await fetch(`${API_URL}/cobros/${codigo}`);
       if (!res.ok) {
         if (res.status === 404) throw new Error('Cobrador no encontrado');
         throw new Error(`Error ${res.status}`);
@@ -93,7 +94,7 @@ const CobroForm: React.FC = () => {
 
     try {
       setCargando(true);
-      const res = await fetch(`http://localhost:3000/cobros/${cobro.cobCodigo}`, {
+      const res = await fetch(`${API_URL}/cobros/${cobro.cobCodigo}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

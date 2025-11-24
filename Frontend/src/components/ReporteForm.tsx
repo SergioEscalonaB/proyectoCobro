@@ -26,11 +26,12 @@ const ReporteForm: React.FC = () => {
   const [filtroCobrador, setFiltroCobrador] = useState<string>('');
   const [cargando, setCargando] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
   // Cargar cobradores (para filtro)
   const cargarCobradores = async () => {
     try {
-      const res = await fetch('http://localhost:3000/cobros');
+      const res = await fetch(`${API_URL}/cobros`);
       if (!res.ok) throw new Error('Error al cargar cobradores');
       const data = await res.json();
       setCobradores(data);
@@ -45,8 +46,8 @@ const ReporteForm: React.FC = () => {
     setError(null);
     try {
       const url = cobCodigo
-        ? `http://localhost:3000/reporte/cobrador/${cobCodigo}`
-        : 'http://localhost:3000/reporte';
+        ? `${API_URL}/reporte/cobrador/${cobCodigo}`
+        : `${API_URL}/reporte`;
       
       const res = await fetch(url);
       if (!res.ok) throw new Error('Error al cargar reportes');
@@ -73,7 +74,7 @@ const ReporteForm: React.FC = () => {
     if (!window.confirm('¿Está seguro que desea eliminar este reporte?')) return;
 
     try {
-      const res = await fetch(`http://localhost:3000/reporte/${id}`, {
+      const res = await fetch(`${API_URL}/reporte/${id}`, {
         method: 'DELETE',
       });
       if (!res.ok) throw new Error('Error al eliminar el reporte');
