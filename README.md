@@ -73,17 +73,22 @@ Este es un sistema integral para la gestión de clientes, préstamos, abonos y l
 
 ### Backend
 1. **Instalar dependencias**
-   cd backend
-   npm install
+    `cd backend`
+   `npm install`
 
-   Crea un archivo .env en backend/ con DATABASE_URL="postgresql://usuario:contraseña@localhost:5432/nombre_bd"
-   Migra prisma usando npx prisma migrate dev
-   Inicia el servidor npm run start
+   Crea un archivo .env en backend/ con:
+   `DATABASE_URL="postgresql://usuario:contraseña@localhost:5432/nombre_bd"`
+
+   Migra prisma usando 
+   `npx prisma migrate dev`
+   Inicia el servidor 
+   `npm run start`
 
 
 ### Frontend
 1. **Instalar dependencias**
-   cd Frontend
-   npm install
+   `cd Frontend`
+   `npm install`
 
-   npm run dev
+    Inicia el servidor
+    `npm run dev`
