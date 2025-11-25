@@ -1,6 +1,5 @@
-// src/pages/CobroForm.tsx
-import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from "react";
+import { Link } from "react-router-dom";
 
 interface Cobro {
   cobCodigo: string;
@@ -12,13 +11,15 @@ interface Cobro {
 
 const CobroForm: React.FC = () => {
   const [cobro, setCobro] = useState<Cobro | null>(null);
-  const [codigoBusqueda, setCodigoBusqueda] = useState<string>('');
+  const [codigoBusqueda, setCodigoBusqueda] = useState<string>("");
   const [modoEdicion, setModoEdicion] = useState(false);
+  const [modoCreacion, setModoCreacion] = useState(false); // ← NUEVO
   const [datosEditables, setDatosEditables] = useState({
-    cobNombre: '',
-    cobDireccion: '',
-    cobMoto: '',
-    cobTelefono: '',
+    cobCodigo: "",
+    cobNombre: "",
+    cobDireccion: "",
+    cobMoto: "",
+    cobTelefono: "",
   });
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +27,7 @@ const CobroForm: React.FC = () => {
   const [mostrarListaPorNombre, setMostrarListaPorNombre] = useState(false);
 
   const inputCodigoRef = useRef<HTMLInputElement>(null);
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
   // Cargar todos los cobradores al inicio
   const cargarCobradoresExistentes = async () => {
@@ -37,7 +38,7 @@ const CobroForm: React.FC = () => {
         setCobradoresExistentes(data);
       }
     } catch (err) {
-      console.error('Error al cargar lista de cobradores:', err);
+      console.error("Error al cargar lista de cobradores:", err);
     }
   };
 
@@ -52,19 +53,21 @@ const CobroForm: React.FC = () => {
     try {
       const res = await fetch(`${API_URL}/cobros/${codigo}`);
       if (!res.ok) {
-        if (res.status === 404) throw new Error('Cobrador no encontrado');
+        if (res.status === 404) throw new Error("Cobrador no encontrado");
         throw new Error(`Error ${res.status}`);
       }
       const data: Cobro = await res.json();
       setCobro(data);
       setDatosEditables({
+        cobCodigo: data.cobCodigo,
         cobNombre: data.cobNombre,
-        cobDireccion: data.cobDireccion || '',
-        cobMoto: data.cobMoto || '',
-        cobTelefono: data.cobTelefono || '',
+        cobDireccion: data.cobDireccion || "",
+        cobMoto: data.cobMoto || "",
+        cobTelefono: data.cobTelefono || "",
       });
+      setModoCreacion(false); // Asegurar que no esté en modo creación
     } catch (err: any) {
-      setError(err.message || 'Error al cargar cobrador');
+      setError(err.message || "Error al cargar cobrador");
       setCobro(null);
     } finally {
       setCargando(false);
@@ -72,7 +75,9 @@ const CobroForm: React.FC = () => {
   };
 
   const handleSeleccionCobrador = (codigo: string) => {
-    const cobradorSeleccionado = cobradoresExistentes.find((c) => c.cobCodigo === codigo);
+    const cobradorSeleccionado = cobradoresExistentes.find(
+      (c) => c.cobCodigo === codigo
+    );
     if (cobradorSeleccionado) {
       cargarCobro(codigo);
       setCodigoBusqueda(codigo);
@@ -88,15 +93,15 @@ const CobroForm: React.FC = () => {
     if (!cobro) return;
     const { cobNombre, cobDireccion, cobMoto, cobTelefono } = datosEditables;
     if (!cobNombre.trim()) {
-      alert('El nombre es obligatorio');
+      alert("El nombre es obligatorio");
       return;
     }
 
     try {
       setCargando(true);
       const res = await fetch(`${API_URL}/cobros/${cobro.cobCodigo}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           cobNombre,
           cobDireccion: cobDireccion || undefined,
@@ -104,7 +109,7 @@ const CobroForm: React.FC = () => {
           cobTelefono: cobTelefono || undefined,
         }),
       });
-      if (!res.ok) throw new Error('Error al actualizar cobrador');
+      if (!res.ok) throw new Error("Error al actualizar cobrador");
       setCobro({
         ...cobro,
         cobNombre,
@@ -113,22 +118,97 @@ const CobroForm: React.FC = () => {
         cobTelefono: cobTelefono || null,
       });
       setModoEdicion(false);
-      alert('✅ Cobrador actualizado correctamente');
+      alert("✅ Cobrador actualizado correctamente");
     } catch (err: any) {
-      alert(`❌ ${err.message || 'Error al guardar'}`);
+      alert(`❌ ${err.message || "Error al guardar"}`);
     } finally {
       setCargando(false);
     }
+  };
+
+  // ← NUEVO: Crear nuevo cobrador
+  const iniciarCreacion = () => {
+    setModoCreacion(true);
+    setModoEdicion(false);
+    setCobro(null);
+    setDatosEditables({
+      cobCodigo: "",
+      cobNombre: "",
+      cobDireccion: "",
+      cobMoto: "",
+      cobTelefono: "",
+    });
+    setCodigoBusqueda("");
+    setError(null);
+  };
+
+  const guardarNuevoCobrador = async () => {
+    const { cobCodigo, cobNombre, cobDireccion, cobMoto, cobTelefono } =
+      datosEditables;
+    if (!cobCodigo.trim()) {
+      alert("El código es obligatorio");
+      return;
+    }
+    if (!cobNombre.trim()) {
+      alert("El nombre es obligatorio");
+      return;
+    }
+
+    // Opcional: verificar si ya existe (mejora de UX)
+    const cobradorExistente = cobradoresExistentes.find(
+      (c) => c.cobCodigo === cobCodigo
+    );
+    if (cobradorExistente) {
+      alert(`Ya existe un cobrador con el código "${cobCodigo}".`);
+      return;
+    }
+
+    try {
+      setCargando(true);
+      const res = await fetch(`${API_URL}/cobros`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cobCodigo: cobCodigo.trim(),
+          cobNombre,
+          cobDireccion: cobDireccion || undefined,
+          cobMoto: cobMoto || undefined,
+          cobTelefono: cobTelefono || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(`Error ${res.status}: ${errorText}`);
+      }
+      const nuevoCobro: Cobro = await res.json();
+      setCobro(nuevoCobro);
+      setModoCreacion(false);
+      setCodigoBusqueda(nuevoCobro.cobCodigo);
+      await cargarCobradoresExistentes();
+      alert("Cobrador creado correctamente");
+    } catch (err: any) {
+      console.error("Error al crear cobrador:", err);
+      alert(`${err.message || "Error al crear cobrador"}`);
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  const cancelarCreacion = () => {
+    setModoCreacion(false);
+    setCobro(null);
+    setCodigoBusqueda("");
   };
 
   const cancelarEdicion = () => {
     setModoEdicion(false);
     if (cobro) {
       setDatosEditables({
+        cobCodigo: cobro.cobCodigo,
         cobNombre: cobro.cobNombre,
-        cobDireccion: cobro.cobDireccion || '',
-        cobMoto: cobro.cobMoto || '',
-        cobTelefono: cobro.cobTelefono || '',
+        cobDireccion: cobro.cobDireccion || "",
+        cobMoto: cobro.cobMoto || "",
+        cobTelefono: cobro.cobTelefono || "",
       });
     }
   };
@@ -167,8 +247,9 @@ const CobroForm: React.FC = () => {
         )}
 
         <div className="flex flex-col h-full gap-2">
-          {/* Búsqueda */}
-          <div className="bg-white dark:bg-gray-700 p-2 rounded shadow flex items-center gap-2">
+          {/* Búsqueda y botón Nuevo */}
+          <div className="bg-white dark:bg-gray-700 p-2 rounded shadow flex items-center gap-2 flex-wrap">
+            {/* Checkbox y búsqueda */}
             <div className="flex items-center">
               <input
                 type="checkbox"
@@ -178,7 +259,7 @@ const CobroForm: React.FC = () => {
                   const checked = e.target.checked;
                   setMostrarListaPorNombre(checked);
                   if (!checked) {
-                    setCodigoBusqueda('');
+                    setCodigoBusqueda("");
                     setCobro(null);
                   }
                 }}
@@ -206,7 +287,10 @@ const CobroForm: React.FC = () => {
                 ))}
               </select>
             ) : (
-              <form onSubmit={handleSubmit} className="flex items-center gap-2 ml-2">
+              <form
+                onSubmit={handleSubmit}
+                className="flex items-center gap-2 ml-2"
+              >
                 <label className="text-sm font-bold text-gray-800 dark:text-white whitespace-nowrap">
                   Código:
                 </label>
@@ -227,6 +311,15 @@ const CobroForm: React.FC = () => {
                 </button>
               </form>
             )}
+
+            {/* Botón "Nuevo Cobrador" */}
+            <button
+              type="button"
+              onClick={iniciarCreacion}
+              className="ml-auto text-sm bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700"
+            >
+              + Nuevo Cobrador
+            </button>
           </div>
 
           {/* Contenido principal */}
@@ -234,115 +327,130 @@ const CobroForm: React.FC = () => {
             <div className="flex-1 flex items-center justify-center text-gray-600 dark:text-gray-300">
               Cargando...
             </div>
-          ) : cobro ? (
+          ) : cobro || modoCreacion ? (
             <div className="bg-white dark:bg-gray-700 p-3 rounded shadow flex-1 overflow-hidden">
               <h2 className="text-sm font-bold text-gray-800 dark:text-white mb-2">
-                Datos del Cobrador
+                {modoCreacion ? "Nuevo Cobrador" : "Datos del Cobrador"}
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {/* Código: editable solo en creación */}
                 <div>
                   <label className="text-sm font-bold text-gray-700 dark:text-gray-300 block">
                     Código
                   </label>
-                  <input
-                    type="text"
-                    value={cobro.cobCodigo}
-                    readOnly
-                    className="w-full bg-gray-200 dark:bg-gray-600 text-sm px-2 py-1 border border-gray-400 dark:border-gray-500 dark:text-white"
-                  />
+                  {modoCreacion ? (
+                    <input
+                      type="text"
+                      value={datosEditables.cobCodigo}
+                      onChange={(e) =>
+                        setDatosEditables({
+                          ...datosEditables,
+                          cobCodigo: e.target.value,
+                        })
+                      }
+                      className="w-full bg-white dark:bg-gray-600 text-sm px-2 py-1 border border-gray-400 dark:border-gray-500 dark:text-white"
+                      placeholder="Ej: C001"
+                    />
+                  ) : (
+                    <input
+                      type="text"
+                      value={cobro?.cobCodigo || ""}
+                      readOnly
+                      className="w-full bg-gray-200 dark:bg-gray-600 text-sm px-2 py-1 border border-gray-400 dark:border-gray-500 dark:text-white"
+                    />
+                  )}
                 </div>
+
+                {/* Nombre */}
                 <div>
                   <label className="text-sm font-bold text-gray-700 dark:text-gray-300 block">
                     Nombre
                   </label>
-                  {modoEdicion ? (
-                    <input
-                      type="text"
-                      value={datosEditables.cobNombre}
-                      onChange={(e) =>
-                        setDatosEditables({ ...datosEditables, cobNombre: e.target.value })
-                      }
-                      className="w-full bg-white dark:bg-gray-600 text-sm px-2 py-1 border border-gray-400 dark:border-gray-500 dark:text-white"
-                    />
-                  ) : (
-                    <input
-                      type="text"
-                      value={cobro.cobNombre}
-                      readOnly
-                      className="w-full bg-gray-200 dark:bg-gray-600 text-sm px-2 py-1 border border-gray-400 dark:border-gray-500 dark:text-white"
-                    />
-                  )}
+                  <input
+                    type="text"
+                    value={datosEditables.cobNombre}
+                    onChange={(e) =>
+                      setDatosEditables({
+                        ...datosEditables,
+                        cobNombre: e.target.value,
+                      })
+                    }
+                    className="w-full bg-white dark:bg-gray-600 text-sm px-2 py-1 border border-gray-400 dark:border-gray-500 dark:text-white"
+                  />
                 </div>
+
+                {/* Dirección */}
                 <div>
                   <label className="text-sm font-bold text-gray-700 dark:text-gray-300 block">
                     Dirección
                   </label>
-                  {modoEdicion ? (
-                    <input
-                      type="text"
-                      value={datosEditables.cobDireccion}
-                      onChange={(e) =>
-                        setDatosEditables({ ...datosEditables, cobDireccion: e.target.value })
-                      }
-                      className="w-full bg-white dark:bg-gray-600 text-sm px-2 py-1 border border-gray-400 dark:border-gray-500 dark:text-white"
-                    />
-                  ) : (
-                    <input
-                      type="text"
-                      value={cobro.cobDireccion || ''}
-                      readOnly
-                      className="w-full bg-gray-200 dark:bg-gray-600 text-sm px-2 py-1 border border-gray-400 dark:border-gray-500 dark:text-white"
-                    />
-                  )}
+                  <input
+                    type="text"
+                    value={datosEditables.cobDireccion}
+                    onChange={(e) =>
+                      setDatosEditables({
+                        ...datosEditables,
+                        cobDireccion: e.target.value,
+                      })
+                    }
+                    className="w-full bg-white dark:bg-gray-600 text-sm px-2 py-1 border border-gray-400 dark:border-gray-500 dark:text-white"
+                  />
                 </div>
+
+                {/* Moto */}
                 <div>
                   <label className="text-sm font-bold text-gray-700 dark:text-gray-300 block">
                     Moto
                   </label>
-                  {modoEdicion ? (
-                    <input
-                      type="text"
-                      value={datosEditables.cobMoto}
-                      onChange={(e) =>
-                        setDatosEditables({ ...datosEditables, cobMoto: e.target.value })
-                      }
-                      className="w-full bg-white dark:bg-gray-600 text-sm px-2 py-1 border border-gray-400 dark:border-gray-500 dark:text-white"
-                    />
-                  ) : (
-                    <input
-                      type="text"
-                      value={cobro.cobMoto || ''}
-                      readOnly
-                      className="w-full bg-gray-200 dark:bg-gray-600 text-sm px-2 py-1 border border-gray-400 dark:border-gray-500 dark:text-white"
-                    />
-                  )}
+                  <input
+                    type="text"
+                    value={datosEditables.cobMoto}
+                    onChange={(e) =>
+                      setDatosEditables({
+                        ...datosEditables,
+                        cobMoto: e.target.value,
+                      })
+                    }
+                    className="w-full bg-white dark:bg-gray-600 text-sm px-2 py-1 border border-gray-400 dark:border-gray-500 dark:text-white"
+                  />
                 </div>
+
+                {/* Teléfono */}
                 <div>
                   <label className="text-sm font-bold text-gray-700 dark:text-gray-300 block">
                     Teléfono
                   </label>
-                  {modoEdicion ? (
-                    <input
-                      type="text"
-                      value={datosEditables.cobTelefono}
-                      onChange={(e) =>
-                        setDatosEditables({ ...datosEditables, cobTelefono: e.target.value })
-                      }
-                      className="w-full bg-white dark:bg-gray-600 text-sm px-2 py-1 border border-gray-400 dark:border-gray-500 dark:text-white"
-                    />
-                  ) : (
-                    <input
-                      type="text"
-                      value={cobro.cobTelefono || ''}
-                      readOnly
-                      className="w-full bg-gray-200 dark:bg-gray-600 text-sm px-2 py-1 border border-gray-400 dark:border-gray-500 dark:text-white"
-                    />
-                  )}
+                  <input
+                    type="text"
+                    value={datosEditables.cobTelefono}
+                    onChange={(e) =>
+                      setDatosEditables({
+                        ...datosEditables,
+                        cobTelefono: e.target.value,
+                      })
+                    }
+                    className="w-full bg-white dark:bg-gray-600 text-sm px-2 py-1 border border-gray-400 dark:border-gray-500 dark:text-white"
+                  />
                 </div>
               </div>
 
               <div className="mt-3 flex gap-1">
-                {modoEdicion ? (
+                {modoCreacion ? (
+                  <>
+                    <button
+                      onClick={guardarNuevoCobrador}
+                      className="text-sm bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700"
+                    >
+                      Guardar Nuevo
+                    </button>
+                    <button
+                      onClick={cancelarCreacion}
+                      className="text-sm bg-gray-500 text-white px-2 py-1 rounded hover:bg-gray-600"
+                    >
+                      Cancelar
+                    </button>
+                  </>
+                ) : modoEdicion ? (
                   <>
                     <button
                       onClick={guardarEdicion}
@@ -371,8 +479,8 @@ const CobroForm: React.FC = () => {
             <div className="flex-1 flex items-center justify-center text-gray-500 dark:text-gray-400">
               <p>
                 {mostrarListaPorNombre
-                  ? 'Seleccione un cobrador de la lista'
-                  : 'Ingrese un código o active "Cobrador Existente"'}
+                  ? "Seleccione un cobrador de la lista"
+                  : 'Ingrese un código, active "Cobrador Existente" o cree uno nuevo'}
               </p>
             </div>
           )}
